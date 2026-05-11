@@ -1,37 +1,45 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // ==========================================
-// 1. CONFIGURACIÓN Y PERMISOS (SEGURIDAD)
+// 1. SEGURIDAD Y ROLES (DINÁMICO DESDE FIRESTORE)
 // ==========================================
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
     if (user) {
-        console.log("Sesión activa:", user.email);
+        console.log("Verificando permisos para:", user.email);
         
-        // Usamos un pequeño delay para asegurar que el HTML cargó
-        setTimeout(() => {
-            const email = user.email.toLowerCase();
-            const esDueño = (email === 'tiasigdev@gmail.com' || email === 'matias@gastroai.com');
+        try {
+            // Buscamos el documento en la colección 'usuarios' usando el UID del login
+            const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+            
+            if (userDoc.exists()) {
+                const datosUsuario = userDoc.data();
+                const esAdmin = datosUsuario.rol === 'admin';
 
-            // Control de Botón Editar Plano
-            const btnEditar = document.getElementById('btn-editar');
-            if (btnEditar) btnEditar.style.display = esDueño ? 'flex' : 'none';
+                // Aplicamos permisos según el ROL guardado en la DB
+                const btnEditar = document.getElementById('btn-editar');
+                const btnDash = document.getElementById('btn-dashboard');
 
-            // Control de Pestaña Dashboard (Stats)
-            const btnDash = document.getElementById('btn-dashboard');
-            if (btnDash) btnDash.style.display = esDueño ? 'block' : 'none';
+                if (btnEditar) btnEditar.style.display = esAdmin ? 'flex' : 'none';
+                if (btnDash) btnDash.style.display = esAdmin ? 'block' : 'none';
+                
+                // Si es Staff, inyectamos CSS para ocultar los botones de edición del POS
+                if (!esAdmin) {
+                    const style = document.createElement('style');
+                    style.innerHTML = `.btn-editar-interno { display: none !important; }`;
+                    document.head.appendChild(style);
+                }
 
-            // Si es Staff, inyectamos CSS para ocultar los lapicitos de edición en el POS
-            if (!esDueño) {
-                const style = document.createElement('style');
-                style.innerHTML = `.btn-editar-interno { display: none !important; }`;
-                document.head.appendChild(style);
-                console.log("🛡️ Modo Staff: Herramientas administrativas ocultas");
+                console.log(`Acceso nivel: ${datosUsuario.rol.toUpperCase()}`);
             } else {
-                console.log("👑 Modo Dueño: Acceso total habilitado");
+                console.log("Acceso STAFF (Usuario sin documento en Firestore)");
+                document.getElementById('btn-editar').style.display = 'none';
             }
-        }, 200);
-
+        } catch (error) {
+            console.error("Error al leer permisos:", error);
+        }
+        
         lucide.createIcons();
     } else {
         window.location.href = "login.html";
@@ -50,7 +58,7 @@ let productos = [
 ];
 
 // ==========================================
-// 3. ESTADO GLOBAL Y LÓGICA DE INTERFAZ
+// 3. ESTADO GLOBAL Y LÓGICA
 // ==========================================
 let modoEdicion = false;
 let mesaSeleccionada = null;
@@ -135,8 +143,6 @@ function editarProducto(id, indexVariante) {
     const modal = document.getElementById('modal-editar');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    document.getElementById('btn-guardar-cambios').onclick = guardarCambiosModal;
-    lucide.createIcons();
 }
 
 function guardarCambiosModal() {
@@ -175,7 +181,7 @@ function renderizarPedido() {
     let total = 0;
     lista.innerHTML = consumoActual.map((item, index) => {
         total += item.precio;
-        return `<div class="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center"><div class="flex-1"><p class="font-bold text-slate-800 text-sm">${item.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase">$${item.precio.toLocaleString('es-AR')}</p></div><button onclick="eliminarItem(${index})" class="text-red-400 hover:text-red-600 p-1"><i data-lucide="trash-2" class="w-4"></i></button></div>`;
+        return `<div class="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100"><div class="flex-1"><p class="font-bold text-slate-800 text-sm">${item.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase">$${item.precio.toLocaleString('es-AR')}</p></div><button onclick="eliminarItem(${index})" class="text-red-400 hover:text-red-600 p-1"><i data-lucide="trash-2" class="w-4"></i></button></div>`;
     }).join('');
     totalFinal.innerText = total.toLocaleString('es-AR');
     totalSuperior.innerText = total.toLocaleString('es-AR');
@@ -187,7 +193,7 @@ function eliminarItem(index) {
     renderizarPedido();
 }
 
-// Draggable y Clicks
+// Draggable y Eventos
 document.addEventListener('mousedown', (e) => {
     if (!modoEdicion) return;
     const mesa = e.target.closest('.mesa');
