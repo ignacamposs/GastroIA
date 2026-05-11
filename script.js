@@ -3,11 +3,17 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 
 // PROTECCIÓN DE RUTA: Si no hay usuario, al login
 onAuthStateChanged(auth, (user) => {
-    if (!user) {
-        window.location.href = "login.html";
+    if (user) {
+        if (user.email === 'matias@gastroai.com') {
+            console.log("Modo Dueño: Habilitando edición");
+            document.getElementById('btn-editar').style.display = 'flex';
+        } else {
+            console.log("Modo Staff: Ocultando herramientas de admin");
+            document.getElementById('btn-editar').style.display = 'none';
+            // También podrías ocultar la pestaña de Inventario o Dashboard de ganancias
+        }
     } else {
-        console.log("GastroAI listo para:", user.email);
-        lucide.createIcons();
+        window.location.href = "login.html";
     }
 });
 
