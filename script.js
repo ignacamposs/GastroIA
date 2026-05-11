@@ -1,3 +1,31 @@
+import { auth, db } from './firebase-config.js'; // Agregado el .js obligatorio
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+// PROTECCIÓN DE RUTA: Si no hay usuario, al login
+onAuthStateChanged(auth, (user) => {
+    if (!user) {
+        window.location.href = "login.html";
+    } else {
+        console.log("GastroAI listo para:", user.email);
+        lucide.createIcons();
+    }
+});
+
+// EXPORTAR FUNCIONES AL WINDOW
+// Como ahora es un módulo, el HTML no "ve" las funciones a menos que las hagamos globales
+window.cambiarPestaña = cambiarPestaña;
+window.agregarItem = agregarItem;
+window.eliminarItem = eliminarItem;
+window.editarProducto = editarProducto;
+window.cerrarModal = cerrarModal;
+window.guardarCambiosModal = guardarCambiosModal;
+window.toggleModoEdicion = toggleModoEdicion;
+window.agregarNuevaMesa = agregarNuevaMesa;
+window.abrirPOS = abrirPOS;
+window.cerrarPOS = cerrarPOS;
+
+// ... (El resto de tu código de productos y lógica de mesas sigue igual abajo)
+
 // ==========================================
 // 1. BASE DE DATOS LOCAL (PRODUCTOS)
 // ==========================================
