@@ -1,6 +1,6 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, onSnapshot, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // ==========================================
 // 1. SEGURIDAD Y ROLES (DINÁMICO DESDE FIRESTORE)
@@ -12,9 +12,7 @@ onAuthStateChanged(auth, async (user) => {
 
             if (userDoc.exists()) {
                 const datos = userDoc.data();
-                const esAdmin = datos.rol === 'admin';
-
-                // Guardar localId globalmente — lo usan guardarPlano y cargarPlano
+                esAdmin = datos.rol === 'admin';
                 localId = datos.localId || user.uid;
 
                 const btnEditar = document.getElementById('btn-editar');
@@ -28,14 +26,14 @@ onAuthStateChanged(auth, async (user) => {
                     document.head.appendChild(style);
                 }
             } else {
-                // Doc no existe → usuario sin configurar, tratarlo como staff
                 localId = user.uid;
                 const btnEditar = document.getElementById('btn-editar');
                 if (btnEditar) btnEditar.style.display = 'none';
             }
 
-            // Cargar el plano guardado del local
             await cargarPlano();
+            escucharMesas();
+            await cargarProductos();
 
         } catch (error) {
             console.error("Error al inicializar sesión:", error);
@@ -48,20 +46,19 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // ==========================================
-// 2. BASE DE DATOS LOCAL (PRODUCTOS)
+// 2. PRODUCTOS Y CATEGORÍAS (DINÁMICO DESDE FIRESTORE)
 // ==========================================
-let productos = [
-    { id: 1, categoria: "cafe", nombre: "Flat White", icono: "☕", variantes: [{ nombre: "Estándar", precio: 4500 }, { nombre: "Avena", precio: 5200 }] },
-    { id: 2, categoria: "cafe", nombre: "Latte", icono: "🥛", variantes: [{ nombre: "XL", precio: 4800 }, { nombre: "Vainilla", precio: 5300 }] },
-    { id: 3, categoria: "cafe", nombre: "Espresso", icono: "⚡", variantes: [{ nombre: "Simple", precio: 3500 }, { nombre: "Doble", precio: 4200 }] },
-    { id: 4, categoria: "cafe", nombre: "Capuccino", icono: "🍫", variantes: [{ nombre: "Italiano", precio: 4700 }, { nombre: "Cacao", precio: 4900 }] },
-    { id: 5, categoria: "cafe", nombre: "Filtrado", icono: "⚖️", variantes: [{ nombre: "V60", precio: 5500 }, { nombre: "Chemex", precio: 9500 }] }
-];
+let productos   = [];
+let categorias  = [];
+let categoriaActivaCarta = null;
+let categoriaActivaPOS   = null;
+let productoEditandoId   = null;
 
 // ==========================================
 // 3. ESTADO GLOBAL Y LÓGICA
 // ==========================================
-let localId = null;
+let localId  = null;
+let esAdmin  = false;
 let modoEdicion = false;
 let mesaSeleccionada = null;
 let offset = { x: 0, y: 0 };
@@ -246,6 +243,7 @@ async function confirmarYCobrar() {
             estado:      'cerrado'
         });
 
+        await deleteDoc(doc(db, 'locales', localId, 'mesas', mesaActivaEnPOS));
         carritos[mesaActivaEnPOS] = [];
         actualizarTotalMesa(mesaActivaEnPOS);
         cerrarPOS();
@@ -260,18 +258,35 @@ async function confirmarYCobrar() {
 }
 
 function renderizarProductosPOS() {
+    if (!categoriaActivaPOS && categorias.length > 0) categoriaActivaPOS = categorias[0].id;
+
+    // Sidebar de categorías dinámico
+    const sidebar = document.getElementById('pos-categorias-sidebar');
+    if (sidebar) {
+        sidebar.innerHTML = categorias.map(cat => `
+            <button onclick="seleccionarCategoriaPOS('${cat.id}')"
+                    class="flex flex-col items-center justify-center p-3 rounded-2xl transition gap-1 ${cat.id === categoriaActivaPOS ? 'bg-blue-50 text-blue-600 border-2 border-blue-600' : 'bg-white text-slate-400'}">
+                <span class="text-xl">${cat.icono}</span>
+                <span class="text-[9px] font-bold uppercase tracking-widest leading-tight text-center">${cat.nombre}</span>
+            </button>
+        `).join('');
+    }
+
+    // Grilla de productos filtrada por categoría activa
     const contenedor = document.querySelector('#pos-screen main div');
+    if (!contenedor) return;
     contenedor.innerHTML = "";
-    productos.forEach(prod => {
+    const filtrados = productos.filter(p => p.categoriaId === categoriaActivaPOS);
+    filtrados.forEach(prod => {
         const card = document.createElement('div');
         card.className = "bg-white p-4 rounded-[1.5rem] shadow-sm border border-slate-200 flex flex-col items-center text-center hover:shadow-md transition";
         const contenidoVariantes = prod.variantes.map((v, index) => `
             <div class="flex items-center gap-1 w-full">
-                <button onclick="agregarItem('${prod.nombre} ${v.nombre}', ${v.precio})" 
+                <button onclick="agregarItem('${prod.nombre} ${v.nombre}', ${v.precio})"
                         class="flex-1 bg-slate-50 py-2 rounded-xl text-[10px] font-bold hover:bg-blue-600 hover:text-white transition italic">
                     ${v.nombre} ($${(v.precio/1000).toFixed(1)}k)
                 </button>
-                <button onclick="editarProducto(${prod.id}, ${index})" class="btn-editar-interno p-2 text-slate-300 hover:text-blue-500 transition">
+                <button onclick="editarProducto('${prod.id}', ${index})" class="btn-editar-interno p-2 text-slate-300 hover:text-blue-500 transition">
                     <i data-lucide="edit-3" class="w-3 h-3"></i>
                 </button>
             </div>
@@ -295,13 +310,19 @@ function editarProducto(id, indexVariante) {
     modal.classList.add('flex');
 }
 
-function guardarCambiosModal() {
+async function guardarCambiosModal() {
     if (!productoSiendoEditado) return;
     const nuevoNombre = document.getElementById('edit-nombre').value;
     const nuevoPrecio = document.getElementById('edit-precio').value;
     if (nuevoNombre && nuevoPrecio) {
         productoSiendoEditado.variantes[varianteIndexSiendoEditada].nombre = nuevoNombre;
         productoSiendoEditado.variantes[varianteIndexSiendoEditada].precio = parseInt(nuevoPrecio);
+        if (localId && productoSiendoEditado.id) {
+            try {
+                await setDoc(doc(db, 'locales', localId, 'productos', productoSiendoEditado.id),
+                    { variantes: productoSiendoEditado.variantes }, { merge: true });
+            } catch (e) { console.error('Error al guardar variante:', e); }
+        }
         renderizarProductosPOS();
         cerrarModal();
     }
@@ -318,6 +339,7 @@ function agregarItem(nombre, precio) {
     carritos[mesaActivaEnPOS].push({ nombre, precio });
     renderizarPedido();
     actualizarTotalMesa(mesaActivaEnPOS);
+    sincronizarCarritoMesa(mesaActivaEnPOS);
 }
 
 function renderizarPedido() {
@@ -346,6 +368,7 @@ function eliminarItem(index) {
     carritos[mesaActivaEnPOS].splice(index, 1);
     renderizarPedido();
     actualizarTotalMesa(mesaActivaEnPOS);
+    sincronizarCarritoMesa(mesaActivaEnPOS);
 }
 
 function actualizarTotalMesa(mesaId) {
@@ -539,12 +562,279 @@ document.addEventListener('touchend', () => {
 });
 
 // ==========================================
+// 5. CARRITO REAL-TIME (FIRESTORE)
+// ==========================================
+
+function escucharMesas() {
+    if (!localId) return;
+    onSnapshot(collection(db, 'locales', localId, 'mesas'), (snapshot) => {
+        snapshot.docChanges().forEach(change => {
+            const mesaId = change.doc.id;
+            carritos[mesaId] = change.type === 'removed' ? [] : (change.doc.data().items || []);
+            actualizarTotalMesa(mesaId);
+            if (mesaId === mesaActivaEnPOS) renderizarPedido();
+        });
+    });
+}
+
+async function sincronizarCarritoMesa(mesaId) {
+    if (!localId) return;
+    const items   = carritos[mesaId] || [];
+    const mesaRef = doc(db, 'locales', localId, 'mesas', mesaId);
+    if (items.length === 0) {
+        await deleteDoc(mesaRef);
+    } else {
+        const mesaEl  = document.getElementById(mesaId);
+        const sectorId = mesaEl?.closest('.sector-canvas')?.dataset.sector;
+        const sector   = sectores.find(s => s.id === sectorId)?.nombre || 'Salón';
+        await setDoc(mesaRef, { items, sector, numeroMesa: parseInt(mesaId.replace('mesa-', '')) });
+    }
+}
+
+// ==========================================
+// 6. PRODUCTOS Y CARTA
+// ==========================================
+
+async function cargarProductos() {
+    if (!localId) return;
+    const catSnap = await getDocs(collection(db, 'locales', localId, 'categorias'));
+    if (catSnap.empty) {
+        await seedProductosIniciales();
+    } else {
+        categorias = catSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.orden || 0) - (b.orden || 0));
+        const prodSnap = await getDocs(collection(db, 'locales', localId, 'productos'));
+        productos = prodSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.orden || 0) - (b.orden || 0));
+    }
+    renderizarCarta();
+    renderizarProductosPOS();
+}
+
+async function seedProductosIniciales() {
+    const catRefs = {};
+    for (const cat of [{ nombre: 'Café', icono: '☕', orden: 1 }, { nombre: 'Dulce', icono: '🥐', orden: 2 }]) {
+        const ref = await addDoc(collection(db, 'locales', localId, 'categorias'), cat);
+        catRefs[cat.nombre] = ref.id;
+        categorias.push({ id: ref.id, ...cat });
+    }
+    const prodData = [
+        { nombre: 'Flat White', icono: '☕', categoriaId: catRefs['Café'], variantes: [{ nombre: 'Estándar', precio: 4500 }, { nombre: 'Avena', precio: 5200 }], orden: 1 },
+        { nombre: 'Latte',      icono: '🥛', categoriaId: catRefs['Café'], variantes: [{ nombre: 'XL', precio: 4800 }, { nombre: 'Vainilla', precio: 5300 }], orden: 2 },
+        { nombre: 'Espresso',   icono: '⚡', categoriaId: catRefs['Café'], variantes: [{ nombre: 'Simple', precio: 3500 }, { nombre: 'Doble', precio: 4200 }], orden: 3 },
+        { nombre: 'Capuccino',  icono: '🍫', categoriaId: catRefs['Café'], variantes: [{ nombre: 'Italiano', precio: 4700 }, { nombre: 'Cacao', precio: 4900 }], orden: 4 },
+        { nombre: 'Filtrado',   icono: '⚖️', categoriaId: catRefs['Café'], variantes: [{ nombre: 'V60', precio: 5500 }, { nombre: 'Chemex', precio: 9500 }], orden: 5 }
+    ];
+    for (const prod of prodData) {
+        const ref = await addDoc(collection(db, 'locales', localId, 'productos'), prod);
+        productos.push({ id: ref.id, ...prod });
+    }
+}
+
+function renderizarCarta() {
+    if (!document.getElementById('pestaña-carta')) return;
+    const adminBtns = document.getElementById('carta-admin-btns');
+    if (adminBtns) adminBtns.style.display = esAdmin ? 'flex' : 'none';
+    if (!categoriaActivaCarta && categorias.length > 0) categoriaActivaCarta = categorias[0].id;
+    renderizarCategoriasCarta();
+    renderizarProductosCarta();
+}
+
+function renderizarCategoriasCarta() {
+    const contenedor = document.getElementById('carta-categorias');
+    if (!contenedor) return;
+    contenedor.innerHTML = categorias.map(cat => `
+        <button onclick="seleccionarCategoriaCarta('${cat.id}')" id="carta-cat-${cat.id}"
+                class="px-5 py-2 rounded-2xl font-bold text-sm transition ${cat.id === categoriaActivaCarta ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}">
+            ${cat.icono} ${cat.nombre}
+        </button>
+    `).join('');
+}
+
+function renderizarProductosCarta() {
+    const contenedor = document.getElementById('carta-productos');
+    if (!contenedor) return;
+    const filtrados = productos.filter(p => p.categoriaId === categoriaActivaCarta);
+    if (filtrados.length === 0) {
+        contenedor.innerHTML = `<div class="col-span-full py-16 text-center text-slate-400">
+            <p class="text-lg font-bold mb-2">No hay productos en esta categoría</p>
+            ${esAdmin ? `<button onclick="abrirModalProducto()" class="text-blue-600 font-bold hover:underline">+ Agregar el primero</button>` : ''}
+        </div>`;
+        return;
+    }
+    contenedor.innerHTML = filtrados.map(prod => `
+        <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition">
+            <div class="flex justify-between items-start mb-3">
+                <span class="text-2xl">${prod.icono}</span>
+                ${esAdmin ? `<div class="flex gap-1">
+                    <button onclick="abrirModalProducto('${prod.id}')" class="p-1.5 text-slate-400 hover:text-blue-500 transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                    <button onclick="confirmarEliminarProducto('${prod.id}')" class="p-1.5 text-slate-400 hover:text-red-500 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>` : ''}
+            </div>
+            <h4 class="font-black text-slate-800 mb-3">${prod.nombre}</h4>
+            <div class="space-y-1.5">
+                ${prod.variantes.map(v => `
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-500">${v.nombre}</span>
+                        <span class="font-bold">$${v.precio.toLocaleString('es-AR')}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+    lucide.createIcons();
+}
+
+function seleccionarCategoriaCarta(catId) {
+    categoriaActivaCarta = catId;
+    renderizarCarta();
+}
+
+function seleccionarCategoriaPOS(catId) {
+    categoriaActivaPOS = catId;
+    renderizarProductosPOS();
+}
+
+function abrirModalProducto(prodId = null) {
+    productoEditandoId = prodId;
+    document.getElementById('modal-producto-titulo').innerText = prodId ? 'Editar Producto' : 'Nuevo Producto';
+    const select = document.getElementById('prod-categoria');
+    select.innerHTML = categorias.map(cat => `<option value="${cat.id}">${cat.icono} ${cat.nombre}</option>`).join('');
+    if (prodId) {
+        const prod = productos.find(p => p.id === prodId);
+        document.getElementById('prod-icono').value  = prod.icono;
+        document.getElementById('prod-nombre').value = prod.nombre;
+        select.value = prod.categoriaId;
+        renderizarVariantesModal(prod.variantes);
+    } else {
+        document.getElementById('prod-icono').value  = '';
+        document.getElementById('prod-nombre').value = '';
+        if (categoriaActivaCarta) select.value = categoriaActivaCarta;
+        renderizarVariantesModal([{ nombre: '', precio: '' }]);
+    }
+    const modal = document.getElementById('modal-producto');
+    modal.classList.remove('hidden'); modal.classList.add('flex');
+    lucide.createIcons();
+}
+
+function cerrarModalProducto() {
+    document.getElementById('modal-producto').classList.add('hidden');
+    document.getElementById('modal-producto').classList.remove('flex');
+    productoEditandoId = null;
+}
+
+function renderizarVariantesModal(variantes) {
+    document.getElementById('prod-variantes').innerHTML = variantes.map((v, i) => `
+        <div class="flex gap-2 items-center" id="var-row-${i}">
+            <input type="text" id="var-nombre-${i}" value="${v.nombre}" placeholder="Nombre (ej: Grande)"
+                   class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500">
+            <input type="number" id="var-precio-${i}" value="${v.precio}" placeholder="Precio"
+                   class="w-28 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500">
+            <button onclick="eliminarVarianteModal(${i})" class="text-red-400 hover:text-red-600 font-black text-xl leading-none">×</button>
+        </div>
+    `).join('');
+}
+
+function agregarVarianteModal() {
+    const i = document.querySelectorAll('#prod-variantes > div').length;
+    const fila = document.createElement('div');
+    fila.id = `var-row-${i}`;
+    fila.className = 'flex gap-2 items-center';
+    fila.innerHTML = `
+        <input type="text" id="var-nombre-${i}" placeholder="Nombre (ej: Grande)"
+               class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500">
+        <input type="number" id="var-precio-${i}" placeholder="Precio"
+               class="w-28 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500">
+        <button onclick="eliminarVarianteModal(${i})" class="text-red-400 hover:text-red-600 font-black text-xl leading-none">×</button>
+    `;
+    document.getElementById('prod-variantes').appendChild(fila);
+}
+
+function eliminarVarianteModal(i) { document.getElementById(`var-row-${i}`)?.remove(); }
+
+async function guardarProductoModal() {
+    const nombre      = document.getElementById('prod-nombre').value.trim();
+    const icono       = document.getElementById('prod-icono').value.trim() || '🍽️';
+    const categoriaId = document.getElementById('prod-categoria').value;
+    if (!nombre) { mostrarToast('El nombre es obligatorio', true); return; }
+    const variantes = [];
+    document.querySelectorAll('#prod-variantes > div').forEach(fila => {
+        const i    = fila.id.replace('var-row-', '');
+        const nVar = document.getElementById(`var-nombre-${i}`)?.value.trim();
+        const pVar = parseInt(document.getElementById(`var-precio-${i}`)?.value);
+        if (nVar && !isNaN(pVar)) variantes.push({ nombre: nVar, precio: pVar });
+    });
+    if (variantes.length === 0) { mostrarToast('Agregá al menos una variante', true); return; }
+    const data = { nombre, icono, categoriaId, variantes, orden: productos.length + 1 };
+    try {
+        if (productoEditandoId) {
+            await setDoc(doc(db, 'locales', localId, 'productos', productoEditandoId), data);
+            const idx = productos.findIndex(p => p.id === productoEditandoId);
+            if (idx !== -1) productos[idx] = { id: productoEditandoId, ...data };
+            mostrarToast('Producto actualizado ✓');
+        } else {
+            const ref = await addDoc(collection(db, 'locales', localId, 'productos'), data);
+            productos.push({ id: ref.id, ...data });
+            mostrarToast('Producto agregado ✓');
+        }
+        cerrarModalProducto();
+        renderizarCarta();
+        renderizarProductosPOS();
+    } catch (e) { console.error(e); mostrarToast('Error al guardar', true); }
+}
+
+async function confirmarEliminarProducto(prodId) {
+    if (!confirm('¿Eliminar este producto?')) return;
+    try {
+        await deleteDoc(doc(db, 'locales', localId, 'productos', prodId));
+        productos = productos.filter(p => p.id !== prodId);
+        renderizarCarta(); renderizarProductosPOS();
+        mostrarToast('Producto eliminado');
+    } catch (e) { mostrarToast('Error al eliminar', true); }
+}
+
+function abrirModalCategoria() {
+    document.getElementById('cat-icono').value  = '';
+    document.getElementById('cat-nombre').value = '';
+    const modal = document.getElementById('modal-categoria');
+    modal.classList.remove('hidden'); modal.classList.add('flex');
+    lucide.createIcons();
+}
+
+function cerrarModalCategoria() {
+    document.getElementById('modal-categoria').classList.add('hidden');
+    document.getElementById('modal-categoria').classList.remove('flex');
+}
+
+async function guardarCategoriaModal() {
+    const nombre = document.getElementById('cat-nombre').value.trim();
+    const icono  = document.getElementById('cat-icono').value.trim() || '🍽️';
+    if (!nombre) { mostrarToast('El nombre es obligatorio', true); return; }
+    try {
+        const ref = await addDoc(collection(db, 'locales', localId, 'categorias'), { nombre, icono, orden: categorias.length + 1 });
+        categorias.push({ id: ref.id, nombre, icono, orden: categorias.length + 1 });
+        cerrarModalCategoria();
+        renderizarCarta();
+        mostrarToast('Categoría agregada ✓');
+    } catch (e) { mostrarToast('Error al guardar', true); }
+}
+
+// ==========================================
 // 4. EXPORTACIÓN GLOBAL
 // ==========================================
 window.cambiarPestaña = cambiarPestaña;
 window.agregarNuevaMesa = agregarNuevaMesa;
 window.cambiarSector = cambiarSector;
 window.agregarNuevoSector = agregarNuevoSector;
+window.seleccionarCategoriaPOS = seleccionarCategoriaPOS;
+window.seleccionarCategoriaCarta = seleccionarCategoriaCarta;
+window.abrirModalProducto = abrirModalProducto;
+window.cerrarModalProducto = cerrarModalProducto;
+window.guardarProductoModal = guardarProductoModal;
+window.confirmarEliminarProducto = confirmarEliminarProducto;
+window.agregarVarianteModal = agregarVarianteModal;
+window.eliminarVarianteModal = eliminarVarianteModal;
+window.abrirModalCategoria = abrirModalCategoria;
+window.cerrarModalCategoria = cerrarModalCategoria;
+window.guardarCategoriaModal = guardarCategoriaModal;
 window.agregarItem = agregarItem;
 window.eliminarItem = eliminarItem;
 window.editarProducto = editarProducto;

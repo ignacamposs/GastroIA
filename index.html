@@ -72,6 +72,7 @@
                 <button onclick="cambiarPestaña('dashboard')" id="btn-dashboard" class="tab-btn pb-4 font-bold text-blue-600 border-b-2 border-blue-600 whitespace-nowrap transition-all duration-200">Resumen IA</button>
                 <button onclick="cambiarPestaña('salon')" id="btn-salon" class="tab-btn pb-4 font-bold text-slate-400 hover:text-slate-600 whitespace-nowrap transition-all duration-200">Mapa de Salón</button>
                 <button onclick="cambiarPestaña('stock')" id="btn-stock" class="tab-btn pb-4 font-bold text-slate-400 hover:text-slate-600 whitespace-nowrap transition-all duration-200">Inventario & Stock</button>
+                <button onclick="cambiarPestaña('carta')" id="btn-carta" class="tab-btn pb-4 font-bold text-slate-400 hover:text-slate-600 whitespace-nowrap transition-all duration-200">Carta</button>
             </nav>
 
             <div id="contenedor-pestañas">
@@ -149,6 +150,25 @@
                     </div>
                 </section>
 
+                <section id="pestaña-carta" class="tab-content hidden animate-fade-in">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h3 class="text-2xl font-bold">Carta</h3>
+                            <p class="text-slate-500 text-sm">Gestioná los productos y categorías de tu menú.</p>
+                        </div>
+                        <div id="carta-admin-btns" style="display:none" class="flex gap-3">
+                            <button onclick="abrirModalCategoria()" class="bg-slate-900 text-white px-5 py-2 rounded-2xl font-bold text-sm flex items-center gap-2 transition">
+                                <i data-lucide="plus" class="w-4"></i> Nueva Categoría
+                            </button>
+                            <button onclick="abrirModalProducto()" class="bg-blue-600 text-white px-5 py-2 rounded-2xl font-bold text-sm flex items-center gap-2 transition">
+                                <i data-lucide="plus" class="w-4"></i> Nuevo Producto
+                            </button>
+                        </div>
+                    </div>
+                    <div id="carta-categorias" class="flex gap-2 mb-6 flex-wrap"></div>
+                    <div id="carta-productos" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+                </section>
+
                 <section id="pestaña-stock" class="tab-content hidden animate-fade-in">
                     <div class="bg-white p-8 rounded-[2rem] border border-slate-200">
                         <h3 class="font-bold text-xl mb-8 flex items-center gap-2"><i data-lucide="alert-circle" class="text-red-500"></i> Insumos Críticos</h3>
@@ -170,10 +190,7 @@
             <div class="bg-blue-600 px-6 py-2 rounded-xl font-black text-xl">$<span id="pos-total-superior">0</span></div>
         </header>
         <div class="flex flex-1 overflow-hidden">
-            <aside class="w-32 bg-white border-r border-slate-200 flex flex-col p-4 gap-4 flex-none">
-                <button class="flex flex-col items-center justify-center p-4 bg-blue-50 text-blue-600 rounded-2xl border-2 border-blue-600"><i data-lucide="coffee" class="mb-2"></i><span class="text-[10px] font-bold uppercase tracking-widest">Café</span></button>
-                <button class="flex flex-col items-center justify-center p-4 bg-white text-slate-400 rounded-2xl"><i data-lucide="croissant" class="mb-2"></i><span class="text-[10px] font-bold uppercase tracking-widest">Dulce</span></button>
-            </aside>
+            <aside id="pos-categorias-sidebar" class="w-32 bg-white border-r border-slate-200 flex flex-col p-4 gap-3 flex-none overflow-y-auto"></aside>
             <main class="flex-1 p-6 overflow-y-auto bg-slate-100">
                 <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     
@@ -257,6 +274,71 @@
                 <div class="mt-10 flex gap-3">
                     <button onclick="cerrarModal()" class="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition">Cancelar</button>
                     <button id="btn-guardar-cambios" class="flex-1 py-4 rounded-2xl font-bold text-white bg-blue-600 shadow-lg shadow-blue-200 hover:bg-blue-700 transition">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Nuevo/Editar Producto -->
+    <div id="modal-producto" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[4000] hidden items-center justify-center p-4 animate-fade-in">
+        <div class="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div class="p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 id="modal-producto-titulo" class="text-2xl font-extrabold text-slate-800">Nuevo Producto</h3>
+                    <button onclick="cerrarModalProducto()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x"></i></button>
+                </div>
+                <div class="space-y-5">
+                    <div class="grid grid-cols-[80px_1fr] gap-3">
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Icono</label>
+                            <input id="prod-icono" type="text" placeholder="☕" maxlength="2" class="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-center text-xl">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Nombre</label>
+                            <input id="prod-nombre" type="text" placeholder="Ej: Flat White" class="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Categoría</label>
+                        <select id="prod-categoria" class="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold"></select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 block mb-3">Variantes y Precios</label>
+                        <div id="prod-variantes" class="space-y-2"></div>
+                        <button onclick="agregarVarianteModal()" class="mt-3 text-blue-600 font-bold text-sm flex items-center gap-1 hover:text-blue-700">
+                            <i data-lucide="plus" class="w-3 h-3"></i> Agregar variante
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-8 flex gap-3">
+                    <button onclick="cerrarModalProducto()" class="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition">Cancelar</button>
+                    <button onclick="guardarProductoModal()" class="flex-1 py-4 rounded-2xl font-bold text-white bg-blue-600 shadow-lg shadow-blue-200 hover:bg-blue-700 transition">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Nueva Categoría -->
+    <div id="modal-categoria" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[4000] hidden items-center justify-center p-4 animate-fade-in">
+        <div class="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl border border-slate-200">
+            <div class="p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-extrabold text-slate-800">Nueva Categoría</h3>
+                    <button onclick="cerrarModalCategoria()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x"></i></button>
+                </div>
+                <div class="grid grid-cols-[80px_1fr] gap-3">
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Icono</label>
+                        <input id="cat-icono" type="text" placeholder="🍽️" maxlength="2" class="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-center text-xl">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Nombre</label>
+                        <input id="cat-nombre" type="text" placeholder="Ej: Salado" class="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                    </div>
+                </div>
+                <div class="mt-8 flex gap-3">
+                    <button onclick="cerrarModalCategoria()" class="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition">Cancelar</button>
+                    <button onclick="guardarCategoriaModal()" class="flex-1 py-4 rounded-2xl font-bold text-white bg-blue-600 shadow-lg shadow-blue-200 hover:bg-blue-700 transition">Guardar</button>
                 </div>
             </div>
         </div>
