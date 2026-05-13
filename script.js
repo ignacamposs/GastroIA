@@ -15,10 +15,14 @@ onAuthStateChanged(auth, async (user) => {
                 esAdmin = datos.rol === 'admin';
                 localId = datos.localId || user.uid;
 
-                const btnEditar = document.getElementById('btn-editar');
-                const btnDash   = document.getElementById('btn-dashboard');
-                if (btnEditar) btnEditar.style.display = esAdmin ? 'flex' : 'none';
-                if (btnDash)   btnDash.style.display   = esAdmin ? 'block' : 'none';
+                const btnEditar   = document.getElementById('btn-editar');
+                const btnDash     = document.getElementById('btn-dashboard');
+                const btnCaja     = document.getElementById('btn-caja');
+                const sidebarCaja = document.getElementById('sidebar-btn-caja');
+                if (btnEditar)   btnEditar.style.display   = esAdmin ? 'flex'  : 'none';
+                if (btnDash)     btnDash.style.display     = esAdmin ? 'block' : 'none';
+                if (btnCaja)     btnCaja.style.display     = esAdmin ? 'block' : 'none';
+                if (sidebarCaja) sidebarCaja.style.display = esAdmin ? 'flex'  : 'none';
 
                 if (!esAdmin) {
                     const style = document.createElement('style');
@@ -78,6 +82,7 @@ let subtotalActual = 0;
 let insumos = [];
 let insumoEditandoId = null;
 let insumoAjustandoId = null;
+let ventasPorMetodo = { efectivo: 0, debito: 0, credito: 0, qr: 0, transferencia: 0 };
 
 function cambiarPestaña(pestañaNombre) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
@@ -93,6 +98,7 @@ function cambiarPestaña(pestañaNombre) {
     }
     if (pestañaNombre === 'dashboard' && localId) cargarDashboard(periodoActualDashboard);
     if (pestañaNombre === 'stock' && localId) cargarInsumos();
+    if (pestañaNombre === 'caja'  && localId) cargarArqueo();
     lucide.createIcons();
 }
 
@@ -1117,7 +1123,171 @@ async function guardarAjusteModal() {
 }
 
 // ==========================================
-// 8. DASHBOARD — DATOS REALES DE FIRESTORE
+// 8. ARQUEO DE CAJA
+// ==========================================
+
+async function cargarArqueo() {
+    if (!localId) return;
+
+    const hoy = new Date();
+    const fechaEl = document.getElementById('arqueo-fecha');
+    if (fechaEl) fechaEl.innerText = hoy.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const inicio = new Date();
+    inicio.setHours(0, 0, 0, 0);
+
+    const q = query(
+        collection(db, 'locales', localId, 'pedidos'),
+        where('timestamp', '>=', Timestamp.fromDate(inicio)),
+        orderBy('timestamp', 'desc')
+    );
+    const snap = await getDocs(q);
+    const pedidos = snap.docs.map(d => d.data());
+
+    ventasPorMetodo = { efectivo: 0, debito: 0, credito: 0, qr: 0, transferencia: 0 };
+    let totalVentas = 0;
+    pedidos.forEach(p => {
+        const m = p.metodoPago || 'efectivo';
+        ventasPorMetodo[m] = (ventasPorMetodo[m] || 0) + (p.total || 0);
+        totalVentas += (p.total || 0);
+    });
+
+    const labels = { efectivo: 'Efectivo', debito: 'Débito', credito: 'Crédito', qr: 'QR', transferencia: 'Transferencia' };
+    const contenedor = document.getElementById('arqueo-ventas');
+    if (contenedor) {
+        const filas = Object.entries(ventasPorMetodo)
+            .filter(([, monto]) => monto > 0)
+            .map(([metodo, monto]) => `
+                <div class="flex justify-between items-center p-3 rounded-2xl ${metodo === 'efectivo' ? 'bg-blue-50 border border-blue-100' : 'bg-slate-50'}">
+                    <span class="font-bold text-sm text-slate-600">${labels[metodo]}</span>
+                    <span class="font-black ${metodo === 'efectivo' ? 'text-blue-600' : 'text-slate-700'}">$${monto.toLocaleString('es-AR')}</span>
+                </div>
+            `).join('');
+        contenedor.innerHTML = filas || '<p class="text-slate-400 italic text-sm">Sin ventas registradas hoy</p>';
+    }
+
+    const totalEl    = document.getElementById('arqueo-total-ventas');
+    const efectivoEl = document.getElementById('arqueo-efectivo-ventas');
+    if (totalEl)    totalEl.innerText    = `$${totalVentas.toLocaleString('es-AR')}`;
+    if (efectivoEl) efectivoEl.innerText = `$${ventasPorMetodo.efectivo.toLocaleString('es-AR')}`;
+
+    calcularArqueo();
+    await cargarHistorialArqueos();
+    lucide.createIcons();
+}
+
+function calcularArqueo() {
+    const fondo   = parseFloat(document.getElementById('arqueo-fondo')?.value)   || 0;
+    const retiros = parseFloat(document.getElementById('arqueo-retiros')?.value) || 0;
+    const contado = parseFloat(document.getElementById('arqueo-contado')?.value);
+
+    const resultadoEl  = document.getElementById('arqueo-resultado');
+    if (isNaN(contado) && fondo === 0) {
+        resultadoEl?.classList.add('hidden');
+        return;
+    }
+
+    const esperado   = fondo + (ventasPorMetodo.efectivo || 0) - retiros;
+    const diferencia = (isNaN(contado) ? 0 : contado) - esperado;
+
+    const esperadoEl   = document.getElementById('arqueo-esperado');
+    const diferenciaEl = document.getElementById('arqueo-diferencia');
+
+    if (resultadoEl)  resultadoEl.classList.remove('hidden');
+    if (esperadoEl)   esperadoEl.innerText = `$${esperado.toLocaleString('es-AR')}`;
+
+    if (diferenciaEl) {
+        const abs = Math.abs(diferencia);
+        diferenciaEl.innerText   = `${diferencia >= 0 ? '+' : '−'}$${abs.toLocaleString('es-AR')}`;
+        diferenciaEl.className   = `font-black text-2xl ${diferencia === 0 ? 'text-green-600' : diferencia > 0 ? 'text-blue-600' : 'text-red-600'}`;
+    }
+    if (resultadoEl) {
+        resultadoEl.className = `mt-6 p-5 rounded-2xl space-y-2 ${diferencia === 0 ? 'bg-green-50' : diferencia > 0 ? 'bg-blue-50' : 'bg-red-50'}`;
+    }
+}
+
+async function guardarArqueo() {
+    const fondo   = parseFloat(document.getElementById('arqueo-fondo')?.value)   || 0;
+    const retiros = parseFloat(document.getElementById('arqueo-retiros')?.value) || 0;
+    const contado = parseFloat(document.getElementById('arqueo-contado')?.value);
+    const notas   = document.getElementById('arqueo-notas')?.value.trim() || '';
+
+    if (isNaN(contado)) { mostrarToast('Ingresá el efectivo contado', true); return; }
+
+    const esperado    = fondo + (ventasPorMetodo.efectivo || 0) - retiros;
+    const diferencia  = contado - esperado;
+    const totalVentas = Object.values(ventasPorMetodo).reduce((s, v) => s + v, 0);
+
+    const btn = document.getElementById('btn-guardar-arqueo');
+    if (btn) { btn.disabled = true; btn.innerText = 'Guardando...'; }
+
+    try {
+        await addDoc(collection(db, 'locales', localId, 'arqueos'), {
+            fecha:            serverTimestamp(),
+            ventasPorMetodo,
+            totalVentas,
+            fondoInicial:     fondo,
+            retiros,
+            efectivoEsperado: esperado,
+            efectivoContado:  contado,
+            diferencia,
+            notas,
+        });
+        mostrarToast('Arqueo guardado ✓');
+        ['arqueo-fondo', 'arqueo-retiros', 'arqueo-contado', 'arqueo-notas'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        document.getElementById('arqueo-resultado')?.classList.add('hidden');
+        await cargarHistorialArqueos();
+    } catch (e) {
+        console.error(e);
+        mostrarToast('Error al guardar', true);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="lock" class="w-5 inline mr-2"></i>Cerrar y Guardar Arqueo';
+            lucide.createIcons();
+        }
+    }
+}
+
+async function cargarHistorialArqueos() {
+    if (!localId) return;
+    const q = query(
+        collection(db, 'locales', localId, 'arqueos'),
+        orderBy('fecha', 'desc')
+    );
+    const snap = await getDocs(q);
+    const arqueos = snap.docs.slice(0, 10).map(d => ({ id: d.id, ...d.data() }));
+
+    const contenedor = document.getElementById('arqueo-historial');
+    if (!contenedor) return;
+    if (arqueos.length === 0) {
+        contenedor.innerHTML = '<p class="text-slate-400 italic text-sm text-center py-4">Sin arqueos registrados</p>';
+        return;
+    }
+    contenedor.innerHTML = arqueos.map(a => {
+        const fecha    = a.fecha?.toDate ? a.fecha.toDate() : new Date();
+        const fechaStr = fecha.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const horaStr  = fecha.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        const dif      = a.diferencia || 0;
+        const difStr   = `${dif >= 0 ? '+' : '−'}$${Math.abs(dif).toLocaleString('es-AR')}`;
+        const difColor = dif === 0 ? 'text-green-600' : dif > 0 ? 'text-blue-600' : 'text-red-600';
+        return `
+            <div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+                <div>
+                    <p class="font-bold text-sm">${fechaStr} · ${horaStr}</p>
+                    <p class="text-xs text-slate-400 font-medium">Total ventas: $${(a.totalVentas || 0).toLocaleString('es-AR')}${a.notas ? ' · ' + a.notas : ''}</p>
+                </div>
+                <span class="font-black ${difColor} text-lg">${difStr}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+// ==========================================
+// 9. DASHBOARD — DATOS REALES DE FIRESTORE
 // ==========================================
 
 function fechaKey(date) {
@@ -1305,6 +1475,9 @@ window.abrirPOS = abrirPOS;
 window.cerrarPOS = cerrarPOS;
 window.confirmarYCobrar = confirmarYCobrar;
 window.cerrarSesion = () => signOut(auth).then(() => window.location.href = "login.html");
+window.cargarArqueo = cargarArqueo;
+window.calcularArqueo = calcularArqueo;
+window.guardarArqueo = guardarArqueo;
 window.abrirModalInsumo = abrirModalInsumo;
 window.cerrarModalInsumo = cerrarModalInsumo;
 window.guardarInsumoModal = guardarInsumoModal;

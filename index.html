@@ -48,6 +48,10 @@
                     <i data-lucide="book-open" class="w-5 text-slate-400 group-hover:text-blue-400"></i>
                     <span class="text-sm font-medium">Carta</span>
                 </button>
+                <button id="sidebar-btn-caja" onclick="cambiarPestaña('caja')" class="w-full flex items-center gap-3 p-3 hover:bg-slate-800 rounded-xl transition group text-left" style="display:none">
+                    <i data-lucide="vault" class="w-5 text-slate-400 group-hover:text-blue-400"></i>
+                    <span class="text-sm font-medium">Arqueo de Caja</span>
+                </button>
             </nav>
             <div class="pt-6 border-t border-slate-800 flex items-center gap-3">
                 <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold flex-none">M</div>
@@ -77,6 +81,7 @@
                 <button onclick="cambiarPestaña('salon')" id="btn-salon" class="tab-btn pb-4 font-bold text-slate-400 hover:text-slate-600 whitespace-nowrap transition-all duration-200">Mapa de Salón</button>
                 <button onclick="cambiarPestaña('stock')" id="btn-stock" class="tab-btn pb-4 font-bold text-slate-400 hover:text-slate-600 whitespace-nowrap transition-all duration-200">Inventario & Stock</button>
                 <button onclick="cambiarPestaña('carta')" id="btn-carta" class="tab-btn pb-4 font-bold text-slate-400 hover:text-slate-600 whitespace-nowrap transition-all duration-200">Carta</button>
+                <button onclick="cambiarPestaña('caja')" id="btn-caja" class="tab-btn pb-4 font-bold text-slate-400 hover:text-slate-600 whitespace-nowrap transition-all duration-200" style="display:none">Arqueo de Caja</button>
             </nav>
 
             <div id="contenedor-pestañas">
@@ -153,6 +158,92 @@
                                 <div class="text-2xl font-black text-slate-800 my-2">Mesa</div>
                                 <div class="text-sm font-bold text-blue-600 mesa-total">Libre</div>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="pestaña-caja" class="tab-content hidden animate-fade-in">
+                    <div class="flex justify-between items-center mb-8">
+                        <div>
+                            <h3 class="text-2xl font-bold">Arqueo de Caja</h3>
+                            <p id="arqueo-fecha" class="text-slate-500 text-sm capitalize"></p>
+                        </div>
+                        <button onclick="cargarArqueo()" class="bg-white border border-slate-200 px-4 py-2 rounded-2xl font-bold text-sm text-slate-600 hover:bg-slate-50 transition flex items-center gap-2">
+                            <i data-lucide="refresh-cw" class="w-4"></i> Actualizar
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                        <!-- Ventas del día -->
+                        <div class="bg-white p-8 rounded-[2rem] border border-slate-200">
+                            <h4 class="font-bold text-lg mb-6 flex items-center gap-2">
+                                <i data-lucide="receipt" class="w-5 text-slate-400"></i> Ventas de hoy
+                            </h4>
+                            <div id="arqueo-ventas" class="space-y-2">
+                                <p class="text-slate-400 italic text-sm">Cargando...</p>
+                            </div>
+                            <div class="border-t border-slate-100 mt-5 pt-5 flex justify-between items-center">
+                                <span class="font-black text-slate-400 text-xs uppercase tracking-widest">Total del día</span>
+                                <span id="arqueo-total-ventas" class="font-black text-2xl">$0</span>
+                            </div>
+                        </div>
+
+                        <!-- Efectivo -->
+                        <div class="bg-white p-8 rounded-[2rem] border border-slate-200">
+                            <h4 class="font-bold text-lg mb-6 flex items-center gap-2">
+                                <i data-lucide="banknote" class="w-5 text-slate-400"></i> Control de efectivo
+                            </h4>
+                            <div class="space-y-4">
+                                <div class="flex justify-between items-center p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                                    <span class="text-blue-700 font-bold text-sm">Ventas en efectivo</span>
+                                    <span id="arqueo-efectivo-ventas" class="font-black text-blue-700">$0</span>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Fondo inicial</label>
+                                    <input id="arqueo-fondo" type="number" min="0" placeholder="0" oninput="calcularArqueo()"
+                                           class="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-right">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Retiros del día</label>
+                                    <input id="arqueo-retiros" type="number" min="0" placeholder="0" oninput="calcularArqueo()"
+                                           class="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-right">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Efectivo contado</label>
+                                    <input id="arqueo-contado" type="number" min="0" placeholder="0" oninput="calcularArqueo()"
+                                           class="w-full mt-2 p-4 bg-slate-50 border-2 border-slate-300 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-right text-2xl">
+                                </div>
+                            </div>
+
+                            <!-- Resultado en tiempo real -->
+                            <div id="arqueo-resultado" class="mt-6 p-5 rounded-2xl bg-slate-50 hidden space-y-2">
+                                <div class="flex justify-between items-center text-sm">
+                                    <span class="text-slate-500 font-bold">Efectivo esperado</span>
+                                    <span id="arqueo-esperado" class="font-black">$0</span>
+                                </div>
+                                <div class="flex justify-between items-center pt-2 border-t border-slate-200">
+                                    <span class="font-black text-base">Diferencia</span>
+                                    <span id="arqueo-diferencia" class="font-black text-2xl">$0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notas y guardar -->
+                    <div class="bg-white p-8 rounded-[2rem] border border-slate-200 mb-8">
+                        <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 block mb-3">Notas del cierre</label>
+                        <textarea id="arqueo-notas" placeholder="Ej: Se retiraron $500 para comprar leche. Todo cuadró." rows="3"
+                                  class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-medium resize-none"></textarea>
+                        <button id="btn-guardar-arqueo" onclick="guardarArqueo()" class="mt-5 w-full bg-slate-900 text-white py-4 rounded-2xl font-bold text-lg hover:bg-slate-800 transition flex items-center justify-center gap-2">
+                            <i data-lucide="lock" class="w-5"></i> Cerrar y Guardar Arqueo
+                        </button>
+                    </div>
+
+                    <!-- Historial -->
+                    <div class="bg-white p-8 rounded-[2rem] border border-slate-200">
+                        <h4 class="font-bold text-lg mb-6">Historial de Arqueos</h4>
+                        <div id="arqueo-historial" class="space-y-3">
+                            <p class="text-slate-400 italic text-sm text-center py-4">Sin arqueos registrados</p>
                         </div>
                     </div>
                 </section>
