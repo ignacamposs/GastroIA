@@ -177,11 +177,19 @@
                 </section>
 
                 <section id="pestaña-stock" class="tab-content hidden animate-fade-in">
-                    <div class="bg-white p-8 rounded-[2rem] border border-slate-200">
-                        <h3 class="font-bold text-xl mb-8 flex items-center gap-2"><i data-lucide="alert-circle" class="text-red-500"></i> Insumos Críticos</h3>
-                        <div class="space-y-6">
-                            <div><div class="flex justify-between text-sm font-bold mb-2"><span>Leche Entera</span><span class="text-red-500">15%</span></div><div class="h-3 bg-slate-100 rounded-full overflow-hidden"><div class="bg-red-500 h-full w-[15%]"></div></div></div>
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h3 class="text-2xl font-bold">Inventario & Stock</h3>
+                            <p class="text-slate-500 text-sm">Controlá los insumos de tu local.</p>
                         </div>
+                        <div id="stock-admin-btns" style="display:none">
+                            <button onclick="abrirModalInsumo()" class="bg-blue-600 text-white px-5 py-2 rounded-2xl font-bold text-sm flex items-center gap-2 transition hover:bg-blue-700">
+                                <i data-lucide="plus" class="w-4"></i> Nuevo Insumo
+                            </button>
+                        </div>
+                    </div>
+                    <div id="stock-lista" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        <p class="text-slate-400 italic text-sm py-8 col-span-full text-center">Cargando...</p>
                     </div>
                 </section>
             </div>
@@ -341,6 +349,85 @@
                 <div class="mt-8 flex gap-3">
                     <button onclick="cerrarModalCategoria()" class="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition">Cancelar</button>
                     <button onclick="guardarCategoriaModal()" class="flex-1 py-4 rounded-2xl font-bold text-white bg-blue-600 shadow-lg shadow-blue-200 hover:bg-blue-700 transition">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Nuevo/Editar Insumo -->
+    <div id="modal-insumo" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[4000] hidden items-center justify-center p-4 animate-fade-in">
+        <div class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-slate-200">
+            <div class="p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 id="modal-insumo-titulo" class="text-2xl font-extrabold text-slate-800">Nuevo Insumo</h3>
+                    <button onclick="cerrarModalInsumo()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x"></i></button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Nombre</label>
+                        <input id="ins-nombre" type="text" placeholder="Ej: Leche Entera" class="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Cantidad actual</label>
+                            <input id="ins-cantidad" type="number" min="0" step="0.1" placeholder="0" class="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Unidad</label>
+                            <select id="ins-unidad" class="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                                <option value="kg">kg</option>
+                                <option value="g">g</option>
+                                <option value="L">L</option>
+                                <option value="mL">mL</option>
+                                <option value="unidades">unidades</option>
+                                <option value="porciones">porciones</option>
+                                <option value="bolsas">bolsas</option>
+                                <option value="cajas">cajas</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Stock mínimo (alerta crítica)</label>
+                        <input id="ins-minimo" type="number" min="0" step="0.1" placeholder="Ej: 5" class="w-full mt-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                    </div>
+                </div>
+                <div class="mt-8 flex gap-3">
+                    <button onclick="cerrarModalInsumo()" class="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition">Cancelar</button>
+                    <button onclick="guardarInsumoModal()" class="flex-1 py-4 rounded-2xl font-bold text-white bg-blue-600 shadow-lg hover:bg-blue-700 transition">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Ajustar Stock -->
+    <div id="modal-ajuste" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[4000] hidden items-center justify-center p-4 animate-fade-in">
+        <div class="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl border border-slate-200">
+            <div class="p-8">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-2xl font-extrabold text-slate-800">Ajustar Stock</h3>
+                    <button onclick="cerrarModalAjuste()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x"></i></button>
+                </div>
+                <p id="ajuste-nombre" class="text-slate-500 font-bold mb-6"></p>
+
+                <div class="bg-slate-50 rounded-2xl p-4 mb-6 flex justify-between items-center">
+                    <span class="text-slate-400 text-sm font-bold uppercase tracking-wide">Stock actual</span>
+                    <span id="ajuste-cantidad-actual" class="font-black text-lg">-</span>
+                </div>
+
+                <div>
+                    <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 block mb-3">Nueva cantidad</label>
+                    <div class="flex items-center gap-3">
+                        <button onclick="cambiarCantidadAjuste(-1)" class="w-14 h-14 rounded-2xl bg-slate-100 hover:bg-slate-200 font-black text-2xl transition flex items-center justify-center flex-none">−</button>
+                        <input id="ajuste-nueva-cantidad" type="number" min="0" step="0.1"
+                               class="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-center text-xl">
+                        <button onclick="cambiarCantidadAjuste(1)" class="w-14 h-14 rounded-2xl bg-slate-100 hover:bg-slate-200 font-black text-2xl transition flex items-center justify-center flex-none">+</button>
+                    </div>
+                    <p id="ajuste-unidad" class="text-center text-slate-400 text-xs font-bold uppercase tracking-widest mt-2"></p>
+                </div>
+
+                <div class="mt-8 flex gap-3">
+                    <button onclick="cerrarModalAjuste()" class="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition">Cancelar</button>
+                    <button onclick="guardarAjusteModal()" class="flex-1 py-4 rounded-2xl font-bold text-white bg-blue-600 shadow-lg hover:bg-blue-700 transition">Guardar</button>
                 </div>
             </div>
         </div>

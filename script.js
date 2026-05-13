@@ -75,6 +75,9 @@ let periodoActualDashboard = 'dia';
 let metodoPagoSeleccionado = null;
 let tipoDescuento = 'pct';
 let subtotalActual = 0;
+let insumos = [];
+let insumoEditandoId = null;
+let insumoAjustandoId = null;
 
 function cambiarPestaña(pestañaNombre) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
@@ -89,6 +92,7 @@ function cambiarPestaña(pestañaNombre) {
         btn.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
     }
     if (pestañaNombre === 'dashboard' && localId) cargarDashboard(periodoActualDashboard);
+    if (pestañaNombre === 'stock' && localId) cargarInsumos();
     lucide.createIcons();
 }
 
@@ -917,7 +921,203 @@ async function guardarCategoriaModal() {
 }
 
 // ==========================================
-// 7. DASHBOARD — DATOS REALES DE FIRESTORE
+// 7. INVENTARIO & STOCK
+// ==========================================
+
+async function cargarInsumos() {
+    if (!localId) return;
+    const snap = await getDocs(collection(db, 'locales', localId, 'insumos'));
+    if (snap.empty && esAdmin) {
+        await seedInsumosIniciales();
+    } else {
+        insumos = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.orden || 0) - (b.orden || 0));
+    }
+    renderizarStock();
+}
+
+async function seedInsumosIniciales() {
+    const data = [
+        { nombre: 'Leche Entera',       cantidad: 8,   unidad: 'L',        stockMinimo: 10,  orden: 1 },
+        { nombre: 'Café Molido',         cantidad: 500, unidad: 'g',        stockMinimo: 300, orden: 2 },
+        { nombre: 'Azúcar',              cantidad: 2,   unidad: 'kg',       stockMinimo: 1,   orden: 3 },
+        { nombre: 'Vasos Descartables',  cantidad: 50,  unidad: 'unidades', stockMinimo: 30,  orden: 4 },
+    ];
+    for (const ins of data) {
+        const ref = await addDoc(collection(db, 'locales', localId, 'insumos'), ins);
+        insumos.push({ id: ref.id, ...ins });
+    }
+}
+
+function renderizarStock() {
+    const contenedor = document.getElementById('stock-lista');
+    if (!contenedor) return;
+    const adminBtns = document.getElementById('stock-admin-btns');
+    if (adminBtns) adminBtns.style.display = esAdmin ? 'block' : 'none';
+
+    if (insumos.length === 0) {
+        contenedor.innerHTML = `<div class="col-span-full py-16 text-center text-slate-400">
+            <p class="text-lg font-bold mb-2">Sin insumos registrados</p>
+            ${esAdmin ? '<button onclick="abrirModalInsumo()" class="text-blue-600 font-bold hover:underline">+ Agregar el primero</button>' : ''}
+        </div>`;
+        return;
+    }
+
+    const sorted = [...insumos].sort((a, b) => {
+        const aOk = a.cantidad >= a.stockMinimo;
+        const bOk = b.cantidad >= b.stockMinimo;
+        if (aOk !== bOk) return aOk ? 1 : -1;
+        return (a.orden || 0) - (b.orden || 0);
+    });
+
+    contenedor.innerHTML = sorted.map(ins => {
+        const critico  = ins.cantidad < ins.stockMinimo;
+        const sinStock = ins.cantidad <= 0;
+        const pct      = Math.min(Math.round((ins.cantidad / ins.stockMinimo) * 100), 100);
+        const barColor = sinStock ? 'bg-red-600' : critico ? 'bg-orange-400' : 'bg-green-500';
+        const cardBg   = sinStock ? 'bg-red-50 border-red-300' : critico ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200';
+        const badge    = sinStock
+            ? '<span class="text-[9px] font-black uppercase text-red-700 bg-red-100 px-2 py-0.5 rounded-full">Sin stock</span>'
+            : critico
+            ? '<span class="text-[9px] font-black uppercase text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">Crítico</span>'
+            : '<span class="text-[9px] font-black uppercase text-green-700 bg-green-100 px-2 py-0.5 rounded-full">OK</span>';
+        const numColor = sinStock ? 'text-red-600' : critico ? 'text-orange-500' : 'text-slate-800';
+
+        return `
+            <div class="p-6 rounded-[2rem] border-2 ${cardBg} shadow-sm">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex-1">
+                        <h4 class="font-black text-slate-800 mb-1.5">${ins.nombre}</h4>
+                        ${badge}
+                    </div>
+                    ${esAdmin ? `<div class="flex gap-0.5 flex-none ml-2">
+                        <button onclick="abrirModalInsumo('${ins.id}')" class="p-1.5 text-slate-300 hover:text-blue-500 transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                        <button onclick="confirmarEliminarInsumo('${ins.id}')" class="p-1.5 text-slate-300 hover:text-red-500 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>` : ''}
+                </div>
+
+                <div class="flex justify-between items-end mb-2">
+                    <span class="text-3xl font-black ${numColor}">${ins.cantidad}</span>
+                    <span class="text-slate-400 font-bold text-xs text-right">
+                        ${ins.unidad}<br>
+                        <span class="text-slate-300">mín ${ins.stockMinimo}</span>
+                    </span>
+                </div>
+
+                <div class="h-2 bg-slate-100 rounded-full overflow-hidden mb-4">
+                    <div class="${barColor} h-full rounded-full transition-all duration-500" style="width:${pct}%"></div>
+                </div>
+
+                ${esAdmin ? `<button onclick="abrirModalAjuste('${ins.id}')"
+                    class="w-full py-2.5 rounded-2xl font-bold text-sm border-2 border-slate-200 text-slate-500 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-center gap-2">
+                    <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i> Ajustar
+                </button>` : ''}
+            </div>
+        `;
+    }).join('');
+    lucide.createIcons();
+}
+
+function abrirModalInsumo(insId = null) {
+    insumoEditandoId = insId;
+    document.getElementById('modal-insumo-titulo').innerText = insId ? 'Editar Insumo' : 'Nuevo Insumo';
+    if (insId) {
+        const ins = insumos.find(i => i.id === insId);
+        document.getElementById('ins-nombre').value   = ins.nombre;
+        document.getElementById('ins-cantidad').value = ins.cantidad;
+        document.getElementById('ins-unidad').value   = ins.unidad;
+        document.getElementById('ins-minimo').value   = ins.stockMinimo;
+    } else {
+        document.getElementById('ins-nombre').value   = '';
+        document.getElementById('ins-cantidad').value = '';
+        document.getElementById('ins-unidad').value   = 'kg';
+        document.getElementById('ins-minimo').value   = '';
+    }
+    const modal = document.getElementById('modal-insumo');
+    modal.classList.remove('hidden'); modal.classList.add('flex');
+    lucide.createIcons();
+}
+
+function cerrarModalInsumo() {
+    document.getElementById('modal-insumo').classList.add('hidden');
+    document.getElementById('modal-insumo').classList.remove('flex');
+    insumoEditandoId = null;
+}
+
+async function guardarInsumoModal() {
+    const nombre   = document.getElementById('ins-nombre').value.trim();
+    const cantidad = parseFloat(document.getElementById('ins-cantidad').value);
+    const unidad   = document.getElementById('ins-unidad').value;
+    const minimo   = parseFloat(document.getElementById('ins-minimo').value);
+    if (!nombre)                        { mostrarToast('El nombre es obligatorio', true); return; }
+    if (isNaN(cantidad) || cantidad < 0) { mostrarToast('Ingresá una cantidad válida', true); return; }
+    if (isNaN(minimo)   || minimo <= 0)  { mostrarToast('Ingresá un mínimo válido', true); return; }
+
+    const data = { nombre, cantidad, unidad, stockMinimo: minimo, orden: insumos.length + 1 };
+    try {
+        if (insumoEditandoId) {
+            await setDoc(doc(db, 'locales', localId, 'insumos', insumoEditandoId), data);
+            const idx = insumos.findIndex(i => i.id === insumoEditandoId);
+            if (idx !== -1) insumos[idx] = { id: insumoEditandoId, ...data };
+            mostrarToast('Insumo actualizado ✓');
+        } else {
+            const ref = await addDoc(collection(db, 'locales', localId, 'insumos'), data);
+            insumos.push({ id: ref.id, ...data });
+            mostrarToast('Insumo agregado ✓');
+        }
+        cerrarModalInsumo();
+        renderizarStock();
+    } catch (e) { mostrarToast('Error al guardar', true); }
+}
+
+async function confirmarEliminarInsumo(insId) {
+    if (!confirm('¿Eliminar este insumo?')) return;
+    try {
+        await deleteDoc(doc(db, 'locales', localId, 'insumos', insId));
+        insumos = insumos.filter(i => i.id !== insId);
+        renderizarStock();
+        mostrarToast('Insumo eliminado');
+    } catch (e) { mostrarToast('Error al eliminar', true); }
+}
+
+function abrirModalAjuste(insId) {
+    insumoAjustandoId = insId;
+    const ins = insumos.find(i => i.id === insId);
+    document.getElementById('ajuste-nombre').innerText          = ins.nombre;
+    document.getElementById('ajuste-unidad').innerText          = ins.unidad;
+    document.getElementById('ajuste-cantidad-actual').innerText = `${ins.cantidad} ${ins.unidad}`;
+    document.getElementById('ajuste-nueva-cantidad').value      = ins.cantidad;
+    const modal = document.getElementById('modal-ajuste');
+    modal.classList.remove('hidden'); modal.classList.add('flex');
+}
+
+function cerrarModalAjuste() {
+    document.getElementById('modal-ajuste').classList.add('hidden');
+    document.getElementById('modal-ajuste').classList.remove('flex');
+    insumoAjustandoId = null;
+}
+
+function cambiarCantidadAjuste(delta) {
+    const input = document.getElementById('ajuste-nueva-cantidad');
+    const actual = parseFloat(input.value) || 0;
+    input.value = Math.max(0, actual + delta);
+}
+
+async function guardarAjusteModal() {
+    const nuevaCantidad = parseFloat(document.getElementById('ajuste-nueva-cantidad').value);
+    if (isNaN(nuevaCantidad) || nuevaCantidad < 0) { mostrarToast('Cantidad inválida', true); return; }
+    try {
+        await setDoc(doc(db, 'locales', localId, 'insumos', insumoAjustandoId),
+            { cantidad: nuevaCantidad }, { merge: true });
+        const idx = insumos.findIndex(i => i.id === insumoAjustandoId);
+        if (idx !== -1) insumos[idx].cantidad = nuevaCantidad;
+        cerrarModalAjuste();
+        renderizarStock();
+        mostrarToast('Stock actualizado ✓');
+    } catch (e) { mostrarToast('Error al actualizar', true); }
+}
+
+// ==========================================
+// 8. DASHBOARD — DATOS REALES DE FIRESTORE
 // ==========================================
 
 function fechaKey(date) {
@@ -1105,6 +1305,14 @@ window.abrirPOS = abrirPOS;
 window.cerrarPOS = cerrarPOS;
 window.confirmarYCobrar = confirmarYCobrar;
 window.cerrarSesion = () => signOut(auth).then(() => window.location.href = "login.html");
+window.abrirModalInsumo = abrirModalInsumo;
+window.cerrarModalInsumo = cerrarModalInsumo;
+window.guardarInsumoModal = guardarInsumoModal;
+window.confirmarEliminarInsumo = confirmarEliminarInsumo;
+window.abrirModalAjuste = abrirModalAjuste;
+window.cerrarModalAjuste = cerrarModalAjuste;
+window.cambiarCantidadAjuste = cambiarCantidadAjuste;
+window.guardarAjusteModal = guardarAjusteModal;
 window.cerrarModalCobro = cerrarModalCobro;
 window.seleccionarMetodoPago = seleccionarMetodoPago;
 window.cambiarTipoDescuento = cambiarTipoDescuento;
