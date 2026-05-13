@@ -1,6 +1,6 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, onSnapshot, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, onSnapshot, deleteDoc, getDocs, query, where, orderBy, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // ==========================================
 // 1. SEGURIDAD Y ROLES (DINÁMICO DESDE FIRESTORE)
@@ -34,6 +34,7 @@ onAuthStateChanged(auth, async (user) => {
             await cargarPlano();
             escucharMesas();
             await cargarProductos();
+            if (esAdmin) cargarDashboard('dia');
 
         } catch (error) {
             console.error("Error al inicializar sesión:", error);
@@ -70,6 +71,7 @@ let sectorActivo = 'salon';
 let contadorSectores = 1;
 let productoSiendoEditado = null;
 let varianteIndexSiendoEditada = null;
+let periodoActualDashboard = 'dia';
 
 function cambiarPestaña(pestañaNombre) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
@@ -83,6 +85,7 @@ function cambiarPestaña(pestañaNombre) {
         btn.classList.remove('text-slate-400');
         btn.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
     }
+    if (pestañaNombre === 'dashboard' && localId) cargarDashboard(periodoActualDashboard);
     lucide.createIcons();
 }
 
@@ -817,9 +820,170 @@ async function guardarCategoriaModal() {
 }
 
 // ==========================================
+// 7. DASHBOARD — DATOS REALES DE FIRESTORE
+// ==========================================
+
+function fechaKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
+function cambiarPeriodoDashboard(periodo) {
+    periodoActualDashboard = periodo;
+    const labels = { dia: 'de hoy', semana: 'esta semana', mes: 'este mes' };
+    ['dia', 'semana', 'mes'].forEach(p => {
+        const btn = document.getElementById(`dash-btn-${p}`);
+        if (!btn) return;
+        if (p === periodo) {
+            btn.classList.add('bg-blue-600', 'text-white', 'shadow-sm');
+            btn.classList.remove('bg-white', 'text-slate-500', 'border', 'border-slate-200');
+        } else {
+            btn.classList.remove('bg-blue-600', 'text-white', 'shadow-sm');
+            btn.classList.add('bg-white', 'text-slate-500', 'border', 'border-slate-200');
+        }
+    });
+    document.querySelectorAll('.dash-periodo-label').forEach(el => el.innerText = labels[periodo]);
+    cargarDashboard(periodo);
+}
+
+async function cargarDashboard(periodo) {
+    if (!localId) return;
+
+    const ahora = new Date();
+    const inicio = new Date();
+    if (periodo === 'dia') {
+        inicio.setHours(0, 0, 0, 0);
+    } else if (periodo === 'semana') {
+        inicio.setDate(ahora.getDate() - 6);
+        inicio.setHours(0, 0, 0, 0);
+    } else {
+        inicio.setDate(ahora.getDate() - 29);
+        inicio.setHours(0, 0, 0, 0);
+    }
+
+    try {
+        const q = query(
+            collection(db, 'locales', localId, 'pedidos'),
+            where('timestamp', '>=', Timestamp.fromDate(inicio)),
+            orderBy('timestamp', 'desc')
+        );
+        const snap = await getDocs(q);
+        const pedidos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        const totalVentas   = pedidos.reduce((s, p) => s + (p.total || 0), 0);
+        const ticketPromedio = pedidos.length > 0 ? Math.round(totalVentas / pedidos.length) : 0;
+
+        document.getElementById('dash-ventas').innerText = totalVentas > 0 ? `$${totalVentas.toLocaleString('es-AR')}` : '$0';
+        document.getElementById('dash-ticket').innerText = ticketPromedio > 0 ? `$${ticketPromedio.toLocaleString('es-AR')}` : '-';
+        document.getElementById('dash-mesas').innerText  = pedidos.length;
+
+        const iaEl = document.getElementById('dash-ia-texto');
+        if (iaEl) iaEl.innerHTML = generarMensajeIA(pedidos, periodo);
+
+        renderizarVentasRecientes(pedidos.slice(0, 10));
+        await renderizarGraficoSemanal();
+
+    } catch (error) {
+        console.error('Error al cargar dashboard:', error);
+        mostrarToast('Error al cargar métricas', true);
+    }
+}
+
+function generarMensajeIA(pedidos, periodo) {
+    const periodoLabel = periodo === 'dia' ? 'hoy' : periodo === 'semana' ? 'esta semana' : 'este mes';
+    if (pedidos.length === 0) {
+        return `Sin ventas registradas ${periodoLabel} todavía. Los datos van a aparecer acá ni bien cierres la primera mesa.`;
+    }
+    const total = pedidos.reduce((s, p) => s + (p.total || 0), 0);
+    const ticket = Math.round(total / pedidos.length);
+    const conteoItems = {};
+    pedidos.forEach(p => (p.items || []).forEach(item => {
+        conteoItems[item.nombre] = (conteoItems[item.nombre] || 0) + 1;
+    }));
+    const masVendido = Object.entries(conteoItems).sort((a, b) => b[1] - a[1])[0];
+    if (masVendido) {
+        return `${periodoLabel === 'hoy' ? 'Hoy' : 'En este período'} el más pedido fue <strong>${masVendido[0]}</strong> (${masVendido[1]} ${masVendido[1] === 1 ? 'vez' : 'veces'}). Ticket promedio: <strong>$${ticket.toLocaleString('es-AR')}</strong>.`;
+    }
+    return `Llevan <strong>${pedidos.length} mesas atendidas</strong> ${periodoLabel} con un ticket promedio de <strong>$${ticket.toLocaleString('es-AR')}</strong>.`;
+}
+
+function renderizarVentasRecientes(pedidos) {
+    const contenedor = document.getElementById('dash-ventas-recientes');
+    if (!contenedor) return;
+    if (pedidos.length === 0) {
+        contenedor.innerHTML = '<p class="text-slate-400 text-center italic text-sm py-8">Sin ventas en este período</p>';
+        return;
+    }
+    contenedor.innerHTML = pedidos.map(p => {
+        const fecha = p.timestamp?.toDate ? p.timestamp.toDate() : new Date();
+        const hora  = fecha.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        const cant  = (p.items || []).length;
+        return `
+            <div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+                <div>
+                    <p class="font-bold text-sm">Mesa ${p.numeroMesa || '?'} · ${p.sector || 'Salón'}</p>
+                    <p class="text-[11px] text-slate-400 font-bold uppercase">${cant} ${cant === 1 ? 'ítem' : 'ítems'} · ${hora}</p>
+                </div>
+                <span class="font-black text-slate-700">$${(p.total || 0).toLocaleString('es-AR')}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+async function renderizarGraficoSemanal() {
+    if (!localId) return;
+    const inicioSemana = new Date();
+    inicioSemana.setDate(inicioSemana.getDate() - 6);
+    inicioSemana.setHours(0, 0, 0, 0);
+
+    const q = query(
+        collection(db, 'locales', localId, 'pedidos'),
+        where('timestamp', '>=', Timestamp.fromDate(inicioSemana)),
+        orderBy('timestamp', 'asc')
+    );
+    const snap = await getDocs(q);
+
+    const dias = {};
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(inicioSemana);
+        d.setDate(inicioSemana.getDate() + i);
+        dias[fechaKey(d)] = 0;
+    }
+    snap.docs.forEach(doc => {
+        const data = doc.data();
+        if (!data.timestamp) return;
+        const k = fechaKey(data.timestamp.toDate());
+        if (dias[k] !== undefined) dias[k] += (data.total || 0);
+    });
+
+    const valores  = Object.values(dias);
+    const keys     = Object.keys(dias);
+    const maximo   = Math.max(...valores, 1);
+    const hoyKey   = fechaKey(new Date());
+    const nombres  = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+    const contenedor = document.getElementById('dash-grafico');
+    if (!contenedor) return;
+    contenedor.innerHTML = keys.map((key, i) => {
+        const pct      = Math.round((valores[i] / maximo) * 100);
+        const fecha    = new Date(key + 'T12:00:00');
+        const nombreDia = nombres[fecha.getDay()];
+        const esHoy    = key === hoyKey;
+        const label    = valores[i] > 0 ? `$${Math.round(valores[i]/1000)}k` : '';
+        return `
+            <div class="flex flex-col items-center gap-1 flex-1 h-full justify-end">
+                <span class="text-[9px] font-bold text-slate-400 h-4">${label}</span>
+                <div class="w-full rounded-t-xl ${esHoy ? 'bg-blue-600' : 'bg-blue-200'}" style="height:${Math.max(pct, 3)}%"></div>
+                <span class="text-[10px] font-bold ${esHoy ? 'text-blue-600' : 'text-slate-400'}">${nombreDia}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+// ==========================================
 // 4. EXPORTACIÓN GLOBAL
 // ==========================================
 window.cambiarPestaña = cambiarPestaña;
+window.cambiarPeriodoDashboard = cambiarPeriodoDashboard;
 window.agregarNuevaMesa = agregarNuevaMesa;
 window.cambiarSector = cambiarSector;
 window.agregarNuevoSector = agregarNuevoSector;

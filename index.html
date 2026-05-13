@@ -77,47 +77,50 @@
 
             <div id="contenedor-pestañas">
                 <section id="pestaña-dashboard" class="tab-content animate-fade-in">
-                    <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-6 rounded-[2rem] mb-10 flex items-start gap-5 shadow-sm">
-                        <div class="bg-amber-400 p-3 rounded-2xl text-white shadow-lg"><i data-lucide="sparkles"></i></div>
+                    <!-- Banner IA -->
+                    <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-6 rounded-[2rem] mb-8 flex items-start gap-5 shadow-sm">
+                        <div class="bg-amber-400 p-3 rounded-2xl text-white shadow-lg flex-none"><i data-lucide="sparkles"></i></div>
                         <div class="flex-1">
                             <h3 class="text-amber-900 font-bold text-lg mb-1">Análisis de GastroAI</h3>
-                            <p class="text-amber-800 leading-relaxed">Las ventas de <strong>Café de Especialidad</strong> subieron un 20%. Hoy está despejado: asegurate de tener leche de avena fría lista.</p>
+                            <p id="dash-ia-texto" class="text-amber-800 leading-relaxed">Cargando datos...</p>
                         </div>
                     </div>
+
+                    <!-- Toggles período -->
+                    <div class="flex gap-2 mb-8">
+                        <button id="dash-btn-dia" onclick="cambiarPeriodoDashboard('dia')" class="px-5 py-2 rounded-2xl font-bold text-sm bg-blue-600 text-white shadow-sm transition">Hoy</button>
+                        <button id="dash-btn-semana" onclick="cambiarPeriodoDashboard('semana')" class="px-5 py-2 rounded-2xl font-bold text-sm bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 transition">7 días</button>
+                        <button id="dash-btn-mes" onclick="cambiarPeriodoDashboard('mes')" class="px-5 py-2 rounded-2xl font-bold text-sm bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 transition">30 días</button>
+                    </div>
+
+                    <!-- Métricas -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
                         <div class="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-                            <div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Ventas de Hoy</div>
-                            <div class="text-3xl font-black">$145.800</div>
+                            <div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Ventas <span class="dash-periodo-label">de hoy</span></div>
+                            <div id="dash-ventas" class="text-3xl font-black mt-2">-</div>
                         </div>
                         <div class="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-                            <div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Ticket Promedio</div>
-                            <div class="text-3xl font-black">$6.200</div>
+                            <div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Ticket Promedio</div>
+                            <div id="dash-ticket" class="text-3xl font-black mt-2">-</div>
                         </div>
-                        <div class="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200 bg-blue-600">
-                            <div class="text-blue-100 text-xs font-bold uppercase tracking-wider mb-2">Ganancia Neta</div>
-                            <div class="text-3xl font-black text-white">$62.400</div>
+                        <div class="bg-blue-600 p-8 rounded-[2rem] shadow-sm">
+                            <div class="text-blue-100 text-xs font-bold uppercase tracking-wider mb-1">Mesas Atendidas <span class="dash-periodo-label text-blue-100">de hoy</span></div>
+                            <div id="dash-mesas" class="text-3xl font-black text-white mt-2">-</div>
                         </div>
                     </div>
+
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div class="bg-white p-8 rounded-[2rem] border border-slate-200">
-                            <h3 class="font-bold text-xl mb-6 font-bold">Ventas Recientes</h3>
-                            <div class="space-y-4">
-                                <div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-                                    <div class="flex items-center gap-3">
-                                        <span class="text-xl">☕</span>
-                                        <div><p class="font-bold text-sm">2x Flat White</p><p class="text-[10px] text-slate-400 uppercase">Mesa 01</p></div>
-                                    </div>
-                                    <span class="font-bold text-slate-700">$9.000</span>
-                                </div>
+                            <h3 class="font-bold text-xl mb-6">Ventas Recientes</h3>
+                            <div id="dash-ventas-recientes" class="space-y-3">
+                                <p class="text-slate-400 text-center italic text-sm py-8">Cargando...</p>
                             </div>
                         </div>
                         <div class="bg-white p-8 rounded-[2rem] border border-slate-200">
-                            <h3 class="font-bold text-xl mb-6">Rendimiento Semanal</h3>
-                            <div class="h-48 flex items-end justify-between gap-2">
-                                <div class="w-full bg-blue-100 rounded-t-xl h-[40%]"></div>
-                                <div class="w-full bg-blue-400 rounded-t-xl h-[85%]"></div>
-                                <div class="w-full bg-blue-600 rounded-t-xl h-[95%]"></div>
-                                <div class="w-full bg-blue-100 rounded-t-xl h-[30%]"></div>
+                            <h3 class="font-bold text-xl mb-1">Rendimiento Semanal</h3>
+                            <p class="text-slate-400 text-xs mb-6">Últimos 7 días</p>
+                            <div id="dash-grafico" class="h-48 flex items-end justify-between gap-2">
+                                <!-- barras renderizadas por JS -->
                             </div>
                         </div>
                     </div>
