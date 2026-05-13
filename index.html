@@ -41,8 +41,12 @@
                     <span class="text-sm font-medium">Mapa de Salón</span>
                 </button>
                 <button onclick="cambiarPestaña('stock')" class="w-full flex items-center gap-3 p-3 hover:bg-slate-800 rounded-xl transition group text-left">
-                    <i data-lucide="package" class="w-5 text-slate-400 group-hover:text-blue-400"></i> 
+                    <i data-lucide="package" class="w-5 text-slate-400 group-hover:text-blue-400"></i>
                     <span class="text-sm font-medium">Inventario</span>
+                </button>
+                <button onclick="cambiarPestaña('carta')" class="w-full flex items-center gap-3 p-3 hover:bg-slate-800 rounded-xl transition group text-left">
+                    <i data-lucide="book-open" class="w-5 text-slate-400 group-hover:text-blue-400"></i>
+                    <span class="text-sm font-medium">Carta</span>
                 </button>
             </nav>
             <div class="pt-6 border-t border-slate-800 flex items-center gap-3">
@@ -337,6 +341,81 @@
                 <div class="mt-8 flex gap-3">
                     <button onclick="cerrarModalCategoria()" class="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition">Cancelar</button>
                     <button onclick="guardarCategoriaModal()" class="flex-1 py-4 rounded-2xl font-bold text-white bg-blue-600 shadow-lg shadow-blue-200 hover:bg-blue-700 transition">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Cobrar Mesa -->
+    <div id="modal-cobro" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[5000] hidden items-center justify-center p-4 animate-fade-in">
+        <div class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-slate-200">
+            <div class="p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 id="modal-cobro-titulo" class="text-2xl font-extrabold text-slate-800">Cobrar Mesa</h3>
+                    <button onclick="cerrarModalCobro()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x"></i></button>
+                </div>
+
+                <!-- Subtotal -->
+                <div class="bg-slate-50 rounded-2xl p-4 mb-6 flex justify-between items-center">
+                    <span class="text-slate-500 font-bold text-sm uppercase tracking-wide">Subtotal</span>
+                    <span id="cobro-subtotal" class="font-black text-xl">$0</span>
+                </div>
+
+                <!-- Método de pago -->
+                <div class="mb-6">
+                    <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 block mb-3">Método de Pago</label>
+                    <div class="grid grid-cols-5 gap-2">
+                        <button onclick="seleccionarMetodoPago('efectivo')" id="metodo-efectivo" class="metodo-btn flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 hover:border-blue-400 transition text-slate-600">
+                            <i data-lucide="banknote" class="w-5 h-5"></i>
+                            <span class="text-[9px] font-black uppercase">Efectivo</span>
+                        </button>
+                        <button onclick="seleccionarMetodoPago('debito')" id="metodo-debito" class="metodo-btn flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 hover:border-blue-400 transition text-slate-600">
+                            <i data-lucide="credit-card" class="w-5 h-5"></i>
+                            <span class="text-[9px] font-black uppercase">Débito</span>
+                        </button>
+                        <button onclick="seleccionarMetodoPago('credito')" id="metodo-credito" class="metodo-btn flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 hover:border-blue-400 transition text-slate-600">
+                            <i data-lucide="credit-card" class="w-5 h-5"></i>
+                            <span class="text-[9px] font-black uppercase">Crédito</span>
+                        </button>
+                        <button onclick="seleccionarMetodoPago('qr')" id="metodo-qr" class="metodo-btn flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 hover:border-blue-400 transition text-slate-600">
+                            <i data-lucide="qr-code" class="w-5 h-5"></i>
+                            <span class="text-[9px] font-black uppercase">QR</span>
+                        </button>
+                        <button onclick="seleccionarMetodoPago('transferencia')" id="metodo-transferencia" class="metodo-btn flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 hover:border-blue-400 transition text-slate-600">
+                            <i data-lucide="smartphone" class="w-5 h-5"></i>
+                            <span class="text-[9px] font-black uppercase">Transfer.</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Descuento -->
+                <div class="mb-6">
+                    <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 block mb-3">Descuento (opcional)</label>
+                    <div class="flex gap-2">
+                        <div class="flex rounded-2xl border border-slate-200 overflow-hidden flex-none">
+                            <button id="descuento-tipo-pct" onclick="cambiarTipoDescuento('pct')" class="px-4 py-3 font-black text-sm bg-blue-600 text-white transition">%</button>
+                            <button id="descuento-tipo-monto" onclick="cambiarTipoDescuento('monto')" class="px-4 py-3 font-black text-sm bg-white text-slate-500 transition">$</button>
+                        </div>
+                        <input id="cobro-descuento-valor" type="number" min="0" placeholder="0" oninput="actualizarResumenCobro()"
+                               class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-right text-lg">
+                    </div>
+                </div>
+
+                <!-- Resumen final -->
+                <div class="bg-slate-50 rounded-2xl p-5 mb-8 space-y-2">
+                    <div id="cobro-fila-descuento" class="flex justify-between items-center text-sm hidden">
+                        <span class="text-slate-500 font-bold">Descuento</span>
+                        <span id="cobro-descuento-monto" class="font-bold text-green-600">-$0</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="font-black text-lg">Total</span>
+                        <span id="cobro-total-final" class="font-black text-2xl text-blue-600">$0</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button onclick="cerrarModalCobro()" class="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition">Cancelar</button>
+                    <button id="btn-confirmar-cobro" onclick="confirmarCobroModal()" class="flex-1 py-4 rounded-2xl font-bold text-white bg-green-600 shadow-lg hover:bg-green-700 transition">Confirmar Cobro</button>
                 </div>
             </div>
         </div>

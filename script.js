@@ -72,6 +72,9 @@ let contadorSectores = 1;
 let productoSiendoEditado = null;
 let varianteIndexSiendoEditada = null;
 let periodoActualDashboard = 'dia';
+let metodoPagoSeleccionado = null;
+let tipoDescuento = 'pct';
+let subtotalActual = 0;
 
 function cambiarPestaña(pestañaNombre) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
@@ -218,45 +221,139 @@ function cerrarPOS() {
     document.getElementById('pos-screen').classList.add('hidden');
 }
 
-async function confirmarYCobrar() {
+function confirmarYCobrar() {
     const items = carritos[mesaActivaEnPOS] || [];
     if (items.length === 0) {
         mostrarToast('No hay productos en el pedido', true);
         return;
     }
 
-    const mesaEl    = document.getElementById(mesaActivaEnPOS);
-    const sectorId  = mesaEl?.closest('.sector-canvas')?.dataset.sector;
-    const sector    = sectores.find(s => s.id === sectorId)?.nombre || 'Salón';
-    const total     = items.reduce((sum, item) => sum + item.precio, 0);
-    const numero    = mesaActivaEnPOS.replace('mesa-', '');
+    subtotalActual = items.reduce((sum, item) => sum + item.precio, 0);
+    metodoPagoSeleccionado = null;
+    tipoDescuento = 'pct';
 
-    const btnCobrar = document.getElementById('btn-cobrar');
-    btnCobrar.disabled  = true;
-    btnCobrar.innerText = 'Guardando...';
+    const numero = mesaActivaEnPOS.replace('mesa-', '');
+    document.getElementById('modal-cobro-titulo').innerText = `Cobrar Mesa ${numero}`;
+    document.getElementById('cobro-subtotal').innerText = `$${subtotalActual.toLocaleString('es-AR')}`;
+    document.getElementById('cobro-descuento-valor').value = '';
+    document.querySelectorAll('.metodo-btn').forEach(b => {
+        b.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-600');
+        b.classList.add('border-slate-200', 'text-slate-600');
+    });
+    cambiarTipoDescuento('pct');
+    actualizarResumenCobro();
+
+    const modal = document.getElementById('modal-cobro');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    lucide.createIcons();
+}
+
+function cerrarModalCobro() {
+    const modal = document.getElementById('modal-cobro');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function seleccionarMetodoPago(metodo) {
+    metodoPagoSeleccionado = metodo;
+    document.querySelectorAll('.metodo-btn').forEach(b => {
+        b.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-600');
+        b.classList.add('border-slate-200', 'text-slate-600');
+    });
+    const btn = document.getElementById(`metodo-${metodo}`);
+    if (btn) {
+        btn.classList.remove('border-slate-200', 'text-slate-600');
+        btn.classList.add('border-blue-600', 'bg-blue-50', 'text-blue-600');
+    }
+}
+
+function cambiarTipoDescuento(tipo) {
+    tipoDescuento = tipo;
+    const btnPct   = document.getElementById('descuento-tipo-pct');
+    const btnMonto = document.getElementById('descuento-tipo-monto');
+    if (tipo === 'pct') {
+        btnPct.classList.add('bg-blue-600', 'text-white');
+        btnPct.classList.remove('bg-white', 'text-slate-500');
+        btnMonto.classList.remove('bg-blue-600', 'text-white');
+        btnMonto.classList.add('bg-white', 'text-slate-500');
+    } else {
+        btnMonto.classList.add('bg-blue-600', 'text-white');
+        btnMonto.classList.remove('bg-white', 'text-slate-500');
+        btnPct.classList.remove('bg-blue-600', 'text-white');
+        btnPct.classList.add('bg-white', 'text-slate-500');
+    }
+    actualizarResumenCobro();
+}
+
+function actualizarResumenCobro() {
+    const valor = parseFloat(document.getElementById('cobro-descuento-valor').value) || 0;
+    let descuentoMonto = 0;
+    if (tipoDescuento === 'pct') {
+        descuentoMonto = Math.round(subtotalActual * (Math.min(valor, 100) / 100));
+    } else {
+        descuentoMonto = Math.min(Math.round(valor), subtotalActual);
+    }
+    const totalFinal = subtotalActual - descuentoMonto;
+    const filaDescuento = document.getElementById('cobro-fila-descuento');
+    if (descuentoMonto > 0) {
+        filaDescuento.classList.remove('hidden');
+        document.getElementById('cobro-descuento-monto').innerText = `-$${descuentoMonto.toLocaleString('es-AR')}`;
+    } else {
+        filaDescuento.classList.add('hidden');
+    }
+    document.getElementById('cobro-total-final').innerText = `$${totalFinal.toLocaleString('es-AR')}`;
+}
+
+async function confirmarCobroModal() {
+    if (!metodoPagoSeleccionado) {
+        mostrarToast('Seleccioná un método de pago', true);
+        return;
+    }
+
+    const items    = carritos[mesaActivaEnPOS] || [];
+    const mesaEl   = document.getElementById(mesaActivaEnPOS);
+    const sectorId = mesaEl?.closest('.sector-canvas')?.dataset.sector;
+    const sector   = sectores.find(s => s.id === sectorId)?.nombre || 'Salón';
+    const numero   = mesaActivaEnPOS.replace('mesa-', '');
+
+    const valor = parseFloat(document.getElementById('cobro-descuento-valor').value) || 0;
+    let descuentoMonto = 0;
+    if (tipoDescuento === 'pct') {
+        descuentoMonto = Math.round(subtotalActual * (Math.min(valor, 100) / 100));
+    } else {
+        descuentoMonto = Math.min(Math.round(valor), subtotalActual);
+    }
+    const totalFinal = subtotalActual - descuentoMonto;
+
+    const btnConfirmar = document.getElementById('btn-confirmar-cobro');
+    if (btnConfirmar) { btnConfirmar.disabled = true; btnConfirmar.innerText = 'Guardando...'; }
 
     try {
         await addDoc(collection(db, 'locales', localId, 'pedidos'), {
-            mesaId:      mesaActivaEnPOS,
-            numeroMesa:  parseInt(numero),
+            mesaId:     mesaActivaEnPOS,
+            numeroMesa: parseInt(numero),
             sector,
             items,
-            total,
-            timestamp:   serverTimestamp(),
-            estado:      'cerrado'
+            subtotal:   subtotalActual,
+            descuento:  descuentoMonto,
+            total:      totalFinal,
+            metodoPago: metodoPagoSeleccionado,
+            timestamp:  serverTimestamp(),
+            estado:     'cerrado'
         });
 
         await deleteDoc(doc(db, 'locales', localId, 'mesas', mesaActivaEnPOS));
         carritos[mesaActivaEnPOS] = [];
         actualizarTotalMesa(mesaActivaEnPOS);
+        cerrarModalCobro();
         cerrarPOS();
-        mostrarToast(`Mesa ${numero} cobrada ✓  $${total.toLocaleString('es-AR')}`);
+        mostrarToast(`Mesa ${numero} cobrada ✓  $${totalFinal.toLocaleString('es-AR')}`);
     } catch (error) {
         console.error('Error al guardar pedido:', error);
         mostrarToast('Error al guardar el pedido', true);
     } finally {
-        btnCobrar.disabled  = false;
-        btnCobrar.innerText = 'Confirmar y Cobrar';
+        if (btnConfirmar) { btnConfirmar.disabled = false; btnConfirmar.innerText = 'Confirmar Cobro'; }
     }
 }
 
@@ -1008,3 +1105,8 @@ window.abrirPOS = abrirPOS;
 window.cerrarPOS = cerrarPOS;
 window.confirmarYCobrar = confirmarYCobrar;
 window.cerrarSesion = () => signOut(auth).then(() => window.location.href = "login.html");
+window.cerrarModalCobro = cerrarModalCobro;
+window.seleccionarMetodoPago = seleccionarMetodoPago;
+window.cambiarTipoDescuento = cambiarTipoDescuento;
+window.actualizarResumenCobro = actualizarResumenCobro;
+window.confirmarCobroModal = confirmarCobroModal;
