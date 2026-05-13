@@ -291,7 +291,7 @@ function renderizarProductosPOS() {
                 </button>
             </div>
         `).join('');
-        card.innerHTML = `<span class="text-xl">${prod.icono}</span><h4 class="font-bold text-slate-800 text-sm mt-1 uppercase">${prod.nombre}</h4><div class="mt-3 w-full space-y-2">${contenidoVariantes}</div>`;
+        card.innerHTML = `<h4 class="font-bold text-slate-800 text-sm uppercase mb-3">${prod.nombre}</h4><div class="w-full space-y-2">${contenidoVariantes}</div>`;
         contenedor.appendChild(card);
     });
     lucide.createIcons();
@@ -663,13 +663,12 @@ function renderizarProductosCarta() {
     contenedor.innerHTML = filtrados.map(prod => `
         <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition">
             <div class="flex justify-between items-start mb-3">
-                <span class="text-2xl">${prod.icono}</span>
+                <h4 class="font-black text-slate-800">${prod.nombre}</h4>
                 ${esAdmin ? `<div class="flex gap-1">
                     <button onclick="abrirModalProducto('${prod.id}')" class="p-1.5 text-slate-400 hover:text-blue-500 transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
                     <button onclick="confirmarEliminarProducto('${prod.id}')" class="p-1.5 text-slate-400 hover:text-red-500 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                 </div>` : ''}
             </div>
-            <h4 class="font-black text-slate-800 mb-3">${prod.nombre}</h4>
             <div class="space-y-1.5">
                 ${prod.variantes.map(v => `
                     <div class="flex justify-between text-sm">
