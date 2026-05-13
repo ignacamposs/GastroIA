@@ -879,7 +879,7 @@ async function cargarDashboard(periodo) {
         const iaEl = document.getElementById('dash-ia-texto');
         if (iaEl) iaEl.innerHTML = generarMensajeIA(pedidos, periodo);
 
-        renderizarVentasRecientes(pedidos.slice(0, 10));
+        renderizarVentasRecientes(pedidos.slice(0, 5));
         await renderizarGraficoSemanal();
 
     } catch (error) {
