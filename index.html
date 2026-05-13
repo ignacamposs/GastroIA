@@ -401,31 +401,31 @@
 
     <!-- Modal: Ajustar Stock -->
     <div id="modal-ajuste" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[4000] hidden items-center justify-center p-4 animate-fade-in">
-        <div class="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl border border-slate-200">
-            <div class="p-8">
+        <div class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-slate-200">
+            <div class="p-10">
                 <div class="flex justify-between items-center mb-2">
                     <h3 class="text-2xl font-extrabold text-slate-800">Ajustar Stock</h3>
                     <button onclick="cerrarModalAjuste()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x"></i></button>
                 </div>
                 <p id="ajuste-nombre" class="text-slate-500 font-bold mb-6"></p>
 
-                <div class="bg-slate-50 rounded-2xl p-4 mb-6 flex justify-between items-center">
+                <div class="bg-slate-50 rounded-2xl p-4 mb-8 flex justify-between items-center">
                     <span class="text-slate-400 text-sm font-bold uppercase tracking-wide">Stock actual</span>
                     <span id="ajuste-cantidad-actual" class="font-black text-lg">-</span>
                 </div>
 
                 <div>
-                    <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 block mb-3">Nueva cantidad</label>
-                    <div class="flex items-center gap-3">
-                        <button onclick="cambiarCantidadAjuste(-1)" class="w-14 h-14 rounded-2xl bg-slate-100 hover:bg-slate-200 font-black text-2xl transition flex items-center justify-center flex-none">−</button>
+                    <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 block mb-4">Nueva cantidad</label>
+                    <div class="flex items-center gap-4">
+                        <button onclick="cambiarCantidadAjuste(-1)" class="w-16 h-16 rounded-2xl bg-slate-100 hover:bg-slate-200 font-black text-3xl transition flex items-center justify-center flex-none">−</button>
                         <input id="ajuste-nueva-cantidad" type="number" min="0" step="0.1"
-                               class="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-center text-xl">
-                        <button onclick="cambiarCantidadAjuste(1)" class="w-14 h-14 rounded-2xl bg-slate-100 hover:bg-slate-200 font-black text-2xl transition flex items-center justify-center flex-none">+</button>
+                               class="flex-1 py-5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-center text-3xl">
+                        <button onclick="cambiarCantidadAjuste(1)" class="w-16 h-16 rounded-2xl bg-slate-100 hover:bg-slate-200 font-black text-3xl transition flex items-center justify-center flex-none">+</button>
                     </div>
-                    <p id="ajuste-unidad" class="text-center text-slate-400 text-xs font-bold uppercase tracking-widest mt-2"></p>
+                    <p id="ajuste-unidad" class="text-center text-slate-400 text-xs font-bold uppercase tracking-widest mt-3"></p>
                 </div>
 
-                <div class="mt-8 flex gap-3">
+                <div class="mt-10 flex gap-3">
                     <button onclick="cerrarModalAjuste()" class="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition">Cancelar</button>
                     <button onclick="guardarAjusteModal()" class="flex-1 py-4 rounded-2xl font-bold text-white bg-blue-600 shadow-lg hover:bg-blue-700 transition">Guardar</button>
                 </div>
