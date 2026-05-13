@@ -1,6 +1,6 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // ==========================================
 // 1. SEGURIDAD Y ROLES (DINÁMICO DESDE FIRESTORE)
@@ -216,6 +216,47 @@ function abrirPOS(numeroMesa) {
 
 function cerrarPOS() {
     document.getElementById('pos-screen').classList.add('hidden');
+}
+
+async function confirmarYCobrar() {
+    const items = carritos[mesaActivaEnPOS] || [];
+    if (items.length === 0) {
+        mostrarToast('No hay productos en el pedido', true);
+        return;
+    }
+
+    const mesaEl    = document.getElementById(mesaActivaEnPOS);
+    const sectorId  = mesaEl?.closest('.sector-canvas')?.dataset.sector;
+    const sector    = sectores.find(s => s.id === sectorId)?.nombre || 'Salón';
+    const total     = items.reduce((sum, item) => sum + item.precio, 0);
+    const numero    = mesaActivaEnPOS.replace('mesa-', '');
+
+    const btnCobrar = document.getElementById('btn-cobrar');
+    btnCobrar.disabled  = true;
+    btnCobrar.innerText = 'Guardando...';
+
+    try {
+        await addDoc(collection(db, 'locales', localId, 'pedidos'), {
+            mesaId:      mesaActivaEnPOS,
+            numeroMesa:  parseInt(numero),
+            sector,
+            items,
+            total,
+            timestamp:   serverTimestamp(),
+            estado:      'cerrado'
+        });
+
+        carritos[mesaActivaEnPOS] = [];
+        actualizarTotalMesa(mesaActivaEnPOS);
+        cerrarPOS();
+        mostrarToast(`Mesa ${numero} cobrada ✓  $${total.toLocaleString('es-AR')}`);
+    } catch (error) {
+        console.error('Error al guardar pedido:', error);
+        mostrarToast('Error al guardar el pedido', true);
+    } finally {
+        btnCobrar.disabled  = false;
+        btnCobrar.innerText = 'Confirmar y Cobrar';
+    }
 }
 
 function renderizarProductosPOS() {
@@ -512,4 +553,5 @@ window.guardarCambiosModal = guardarCambiosModal;
 window.toggleModoEdicion = toggleModoEdicion;
 window.abrirPOS = abrirPOS;
 window.cerrarPOS = cerrarPOS;
+window.confirmarYCobrar = confirmarYCobrar;
 window.cerrarSesion = () => signOut(auth).then(() => window.location.href = "login.html");
