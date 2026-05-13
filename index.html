@@ -416,11 +416,11 @@
 
                 <div>
                     <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 block mb-4">Nueva cantidad</label>
-                    <div class="flex items-center gap-4">
-                        <button onclick="cambiarCantidadAjuste(-1)" class="w-16 h-16 rounded-2xl bg-slate-100 hover:bg-slate-200 font-black text-3xl transition flex items-center justify-center flex-none">−</button>
+                    <div class="flex items-center border-2 border-slate-200 rounded-2xl overflow-hidden bg-slate-50">
+                        <button onclick="cambiarCantidadAjuste(-1)" class="w-16 h-16 font-black text-2xl hover:bg-slate-200 transition flex-none flex items-center justify-center text-slate-600">−</button>
                         <input id="ajuste-nueva-cantidad" type="number" min="0" step="0.1"
-                               class="flex-1 py-5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-center text-3xl">
-                        <button onclick="cambiarCantidadAjuste(1)" class="w-16 h-16 rounded-2xl bg-slate-100 hover:bg-slate-200 font-black text-3xl transition flex items-center justify-center flex-none">+</button>
+                               class="flex-1 py-4 bg-transparent outline-none font-black text-center text-3xl min-w-0">
+                        <button onclick="cambiarCantidadAjuste(1)" class="w-16 h-16 font-black text-2xl hover:bg-slate-200 transition flex-none flex items-center justify-center text-slate-600">+</button>
                     </div>
                     <p id="ajuste-unidad" class="text-center text-slate-400 text-xs font-bold uppercase tracking-widest mt-3"></p>
                 </div>
