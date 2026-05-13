@@ -46,11 +46,14 @@
                 </button>
             </nav>
             <div class="pt-6 border-t border-slate-800 flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold">M</div>
-                <div class="text-xs">
+                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold flex-none">M</div>
+                <div class="text-xs flex-1">
                     <p class="font-bold text-slate-200">Matias Dev</p>
                     <p class="text-slate-500 italic text-[10px]">Barista & Founder</p>
                 </div>
+                <button onclick="cerrarSesion()" title="Cerrar sesión" class="text-slate-500 hover:text-red-400 transition p-1 flex-none">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                </button>
             </div>
         </aside>
 
@@ -120,18 +123,28 @@
                 </section>
 
                 <section id="pestaña-salon" class="tab-content hidden animate-fade-in">
-                    <div class="flex justify-between items-center mb-6">
+                    <div class="flex justify-between items-center mb-4">
                         <div><h3 class="text-2xl font-bold">Salón</h3><p class="text-slate-500 text-sm">Entrá a una mesa para cargar pedidos.</p></div>
                         <div class="flex gap-3">
                             <button onclick="toggleModoEdicion()" id="btn-editar" class="bg-slate-900 text-white px-6 py-2 rounded-2xl font-bold flex items-center gap-2 transition"><i data-lucide="move" class="w-4"></i> Editar Plano</button>
                             <button onclick="agregarNuevaMesa()" class="bg-blue-600 text-white px-6 py-2 rounded-2xl font-bold flex items-center gap-2 transition"><i data-lucide="plus" class="w-4"></i> Nueva Mesa</button>
                         </div>
                     </div>
-                    <div id="area-salon" class="relative w-full h-[600px] bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 overflow-hidden shadow-inner">
-                        <div id="mesa-1" class="mesa absolute p-6 rounded-3xl border-2 border-blue-500 bg-white shadow-xl cursor-pointer" style="top: 100px; left: 100px; width: 140px;">
-                            <div class="text-xs font-black text-slate-400 uppercase">01</div>
-                            <div class="text-2xl font-black text-slate-800 my-2">Mesa</div>
-                            <div class="text-sm font-bold text-blue-600">$12.400</div>
+
+                    <div id="sector-tabs" class="flex gap-2 mb-4 items-center flex-wrap">
+                        <button id="tab-salon" onclick="cambiarSector('salon')" class="sector-tab px-5 py-2 rounded-2xl font-bold text-sm bg-blue-600 text-white transition">Salón</button>
+                        <button onclick="agregarNuevoSector()" class="px-4 py-2 rounded-2xl font-bold text-sm border-2 border-dashed border-slate-300 text-slate-400 hover:border-blue-400 hover:text-blue-500 transition flex items-center gap-1">
+                            <i data-lucide="plus" class="w-3 h-3"></i> Nueva Zona
+                        </button>
+                    </div>
+
+                    <div id="contenedor-sectores">
+                        <div id="area-salon" data-sector="salon" class="sector-canvas relative w-full h-[600px] bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 overflow-hidden shadow-inner">
+                            <div id="mesa-1" class="mesa absolute p-6 rounded-3xl border-2 border-blue-500 bg-white shadow-xl cursor-pointer" style="top: 100px; left: 100px; width: 140px;">
+                                <div class="text-xs font-black text-slate-400 uppercase">01</div>
+                                <div class="text-2xl font-black text-slate-800 my-2">Mesa</div>
+                                <div class="text-sm font-bold text-blue-600 mesa-total">Libre</div>
+                            </div>
                         </div>
                     </div>
                 </section>
